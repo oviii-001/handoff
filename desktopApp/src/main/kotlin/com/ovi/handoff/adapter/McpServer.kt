@@ -20,7 +20,7 @@ object McpServer {
             pingIntervalMillis = 20_000
         }
     }
-    private val relayHost = "handoff.ovi.workers.dev" // Assuming default host for now
+    private val relayHost = System.getenv("HANDOFF_RELAY_HOST") ?: "agentapprove-relay.ismamhasanovi.workers.dev"
 
     fun run() = runBlocking {
         val scanner = Scanner(System.`in`)

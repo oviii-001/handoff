@@ -58,6 +58,8 @@ HandOff is designed using **Clean Architecture + MVVM** and an **Offline-First R
 
 ## 🛠 Getting Started
 
+> 📖 **Looking for full step-by-step instructions?** See the comprehensive [**Setup & Installation Guide**](SETUP_GUIDE.md) covering Android installation, Cloudflare relay hosting, MCP setup for Claude / Cursor / Antigravity, and end-to-end testing.
+
 ### Prerequisites
 - JDK 17 or 21
 - Android Studio Ladybug / Meerkat (Android SDK 35 / 36)
