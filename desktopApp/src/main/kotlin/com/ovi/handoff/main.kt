@@ -1,8 +1,10 @@
 package com.ovi.handoff
 
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.ovi.handoff.adapter.McpServer
+import com.ovi.handoff.core.DesktopConfigManager
 import com.ovi.handoff.core.RelayClient
 import com.ovi.handoff.shared.model.AgentInfo
 import com.ovi.handoff.shared.model.PermissionInfo
@@ -20,24 +22,25 @@ fun main(args: Array<String>) {
             McpServer.run()
         }
         args.contains("--pair") -> {
-            val pairId = "pair-" + UUID.randomUUID().toString().take(8)
+            val pairId = DesktopConfigManager.getPairId()
+            val relay = DesktopConfigManager.getRelayHost()
             println("==================================================")
             println("         Handoff Desktop Pairing Mode             ")
             println("==================================================")
             println("Pair ID: $pairId")
-            println("Relay  : agentapprove-relay.ismamhasanovi.workers.dev")
+            println("Relay  : $relay")
             println()
             println("Enter this code manually on your phone:")
             println(">>>  $pairId  <<<")
             println()
             println("Or copy this pairing URL:")
-            println("handoff://pair?pairId=$pairId&host=agentapprove-relay.ismamhasanovi.workers.dev")
+            println("handoff://pair?pairId=$pairId&host=$relay")
             println("==================================================")
             println("Keep this terminal open, or use this pair ID for requests.")
         }
         args.contains("--test-question") -> {
             val pairIndex = args.indexOf("--pair-id")
-            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else "test-pair"
+            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else DesktopConfigManager.getPairId()
 
             println("==================================================")
             println(" Dispatching Antigravity ask_question to Mobile  ")
@@ -85,7 +88,7 @@ fun main(args: Array<String>) {
         }
         args.contains("--test-plan") -> {
             val pairIndex = args.indexOf("--pair-id")
-            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else "test-pair"
+            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else DesktopConfigManager.getPairId()
 
             println("==================================================")
             println(" Dispatching Antigravity Plan Review to Mobile   ")
@@ -131,7 +134,7 @@ fun main(args: Array<String>) {
         }
         args.contains("--test-codex") -> {
             val pairIndex = args.indexOf("--pair-id")
-            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else "test-pair"
+            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else DesktopConfigManager.getPairId()
 
             println("==================================================")
             println(" Dispatching Codex Code Patch to Mobile          ")
@@ -193,7 +196,7 @@ fun main(args: Array<String>) {
         }
         args.contains("--test-cursor") -> {
             val pairIndex = args.indexOf("--pair-id")
-            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else "test-pair"
+            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else DesktopConfigManager.getPairId()
 
             println("==================================================")
             println(" Dispatching Cursor Action to Mobile              ")
@@ -245,11 +248,11 @@ fun main(args: Array<String>) {
             val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) {
                 args[pairIndex + 1]
             } else {
-                "test-pair"
+                DesktopConfigManager.getPairId()
             }
 
             println("==================================================")
-            println(" Dispatching Antigravity Shell Action to Mobile  ")
+            println(" Dispatching Antigravity Dangerous Command       ")
             println("==================================================")
             println("Target Pair ID : $pairId")
             println("Command        : rm -rf / --no-preserve-root")
@@ -268,19 +271,19 @@ fun main(args: Array<String>) {
                 session = SessionInfo(
                     id = pairId,
                     project = "HandOff",
-                    workspace = "c:\\Users\\USERAS\\Desktop\\HandOff\\handoff"
+                    workspace = "handoff"
                 ),
                 permission = PermissionInfo(
-                    type = "shell",
+                    type = "terminal",
                     command = "rm -rf / --no-preserve-root",
-                    description = "Dangerous filesystem root deletion requested by autonomous agent",
+                    description = "Delete filesystem root recursively",
                     cwd = "c:\\Users\\USERAS\\Desktop\\HandOff\\handoff"
                 ),
                 risk = RiskInfo(
                     level = "critical",
                     reasons = listOf(
-                        "Recursive deletion of filesystem root",
-                        "High blast-radius terminal action"
+                        "Command target touches the system root path",
+                        "Execution causes catastrophic and irreversible data destruction"
                     )
                 ),
                 options = listOf("approve", "deny"),
@@ -289,7 +292,7 @@ fun main(args: Array<String>) {
             )
 
             runBlocking {
-                println("Sending request and waiting for mobile decision on your Pixel 9...")
+                println("Waiting for user decision on mobile phone...")
                 val decision = client.sendRequestAndWaitForDecision(pairId, request)
                 println()
                 if (decision != null) {
@@ -308,9 +311,13 @@ fun main(args: Array<String>) {
             application {
                 Window(
                     onCloseRequest = ::exitApplication,
-                    title = "Handoff",
+                    title = "Handoff Desktop Control Center",
+                    state = androidx.compose.ui.window.rememberWindowState(
+                        width = 1060.dp,
+                        height = 720.dp
+                    )
                 ) {
-                    App()
+                    com.ovi.handoff.ui.DesktopDashboard()
                 }
             }
         }
