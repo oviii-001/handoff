@@ -1,4 +1,4 @@
-# AgentApprove — System Design (Zero-Cost, Solo-Buildable Edition)
+# HandOff — System Design (Zero-Cost, Solo-Buildable Edition)
 
 *Based on your proposal, adapted for: Android/Kotlin/Jetpack Compose skillset, $0 infrastructure budget, open-source, global users, solo/small-team build.*
 
@@ -108,7 +108,7 @@ Keep exactly as specified in your proposal — deterministic YAML rules, local-o
 
 ## 5. Protocol (unchanged from your proposal, transport-agnostic)
 
-Your `PermissionRequest`/`PermissionDecision` schema and the CREATED → PENDING → APPROVED/DENIED/EXPIRED → DELIVERED → EXECUTED lifecycle are well-designed and transport-independent — keep them verbatim. Model them as a shared Kotlin Multiplatform module (`:protocol`) so the desktop bridge (JVM) and Android app (Android target) use the *same* generated serialization code (kotlinx.serialization) instead of hand-syncing a JSON schema across two codebases. This also gives you a natural place to put protocol version negotiation (`agentapprove/1.0`) as a sealed class hierarchy that fails to compile if a client and server drift.
+Your `PermissionRequest`/`PermissionDecision` schema and the CREATED → PENDING → APPROVED/DENIED/EXPIRED → DELIVERED → EXECUTED lifecycle are well-designed and transport-independent — keep them verbatim. Model them as a shared Kotlin Multiplatform module (`:protocol`) so the desktop bridge (JVM) and Android app (Android target) use the *same* generated serialization code (kotlinx.serialization) instead of hand-syncing a JSON schema across two codebases. This also gives you a natural place to put protocol version negotiation (`handoff/1.0`) as a sealed class hierarchy that fails to compile if a client and server drift.
 
 ---
 

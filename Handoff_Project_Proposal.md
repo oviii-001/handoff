@@ -1,4 +1,4 @@
-# AgentApprove
+# HandOff
 
 ## Production-Grade Project Proposal
 
@@ -14,9 +14,9 @@
 
 AI coding agents are increasingly capable of running multi-step development workflows. The limiting factor is often not generation speed but human approval: an agent reaches a tool-permission boundary, pauses, and waits for the developer to approve or deny the action.
 
-AgentApprove is an open-source, agent-agnostic permission bridge that moves those approval decisions from the developer's computer to their phone.
+HandOff is an open-source, agent-agnostic permission bridge that moves those approval decisions from the developer's computer to their phone.
 
-The developer installs AgentApprove on the computer, installs the mobile app, scans a QR code, and starts using their coding agent normally. When an agent requests permission, the desktop bridge receives the request, evaluates local policies, and—when human approval is required—delivers an encrypted approval request to the paired phone. The user can approve or deny the request from a notification or the mobile app. The decision returns to the desktop bridge and is forwarded to the waiting agent.
+The developer installs HandOff on the computer, installs the mobile app, scans a QR code, and starts using their coding agent normally. When an agent requests permission, the desktop bridge receives the request, evaluates local policies, and—when human approval is required—delivers an encrypted approval request to the paired phone. The user can approve or deny the request from a notification or the mobile app. The decision returns to the desktop bridge and is forwarded to the waiting agent.
 
 The system is designed around four principles:
 

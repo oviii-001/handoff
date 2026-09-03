@@ -5,6 +5,40 @@ All notable changes to the HandOff project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-04
+
+### Added
+- **Production-Grade Material 3 Expressive Navigation**:
+  - Material 3 Navigation Bar with dynamic badges (active request badge on Home, count badge on Audit Log).
+  - Physics-based spring animations (`MotionScheme.expressive()`) across NavHost and tab switches.
+  - Dedicated screen-specific TopAppBars (`HomeTopAppBar`, `AuditTopAppBar`, `SettingsTopAppBar`).
+  - Full-screen back button navigation on Pairing and Settings screens.
+- **Integrated Home Pairing & Onboarding (`UnpairedHomeView`)**:
+  - Interactive 3-step quickstart guide directly on the Home screen for first-time installation.
+  - Quick action to open CameraX QR barcode scanner.
+  - Manual pairing code input with 1-tap clipboard paste and live validation.
+- **Comprehensive Permissions & Permissions Hub**:
+  - Added Android runtime and manifest permissions (`CAMERA`, `POST_NOTIFICATIONS`, `USE_BIOMETRIC`, `VIBRATE`, `ACCESS_NETWORK_STATE`, `INTERNET`).
+  - Live Device Permissions Hub in Settings displaying real-time status for Camera, Notifications, and Biometrics.
+  - Android 13+ runtime notification prompt on app launch.
+- **Strict UI Data Model Architecture**:
+  - Introduced dedicated immutable UI models (`PermissionRequestUiModel`, `ConnectedAgentUiModel`, `PlanUiModel`, `QuestionUiModel`).
+  - Decoupled all presentation layer Composables from domain entities and Room entities.
+  - Safe boundary mappers (`toUiModel()`) in ViewModel.
+- **100% String Resource Extraction (i18n)**:
+  - Extracted all user-facing text to `strings.xml` across `:mobile:core`, `:mobile:feature:approval`, and `:mobile:feature:pairing`.
+  - Zero hardcoded strings in Composables and ViewModels.
+- **Audit Log Purging & Emergency Session Abort**:
+  - Added Clear Audit Log button with confirmation modal and database wipe.
+  - Added Emergency Session Halt action in TopAppBar and Home dashboard.
+- **Comprehensive End-to-End Setup & Installation Guide**:
+  - Detailed `SETUP_GUIDE.md` covering prerequisites, ADB installation, Cloudflare Relay self-hosting, MCP configuration, and troubleshooting.
+
+### Changed
+- Normalized IDE and agent names to clean single identifiers (`Antigravity`, `Cursor`, `Codex`, `Claude`) without verbose labels or icons.
+- Standardized project branding strictly as **Handoff** across application manifests, notifications, top bars, and documentation.
+- Updated unit test suites across all modules (`:mobile:feature:approval`, `:mobile:feature:pairing`, `:mobile:domain`) to 100% passing.
+
 ## [1.0.0] - 2026-09-03
 
 ### Added

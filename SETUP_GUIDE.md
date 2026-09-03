@@ -194,7 +194,7 @@ In your project terminal, execute:
 The terminal will generate a unique session identifier:
 ```text
 ==================================================
-       AgentApprove Desktop Pairing Mode          
+       HandOff Desktop Pairing Mode          
 ==================================================
 Pair ID: pair-a1b2c3d4
 Relay  : agentapprove-relay.ismamhasanovi.workers.dev
@@ -203,7 +203,7 @@ Enter this code manually on your phone:
 >>>  pair-a1b2c3d4  <<<
 
 Or copy this pairing URL:
-agentapprove://pair?pairId=pair-a1b2c3d4&host=agentapprove-relay.ismamhasanovi.workers.dev
+handoff://pair?pairId=pair-a1b2c3d4&host=agentapprove-relay.ismamhasanovi.workers.dev
 ==================================================
 ```
 

@@ -16,13 +16,13 @@ import java.util.UUID
 fun main(args: Array<String>) {
     when {
         args.contains("--cli") || args.contains("--mcp") -> {
-            println("Starting AgentApprove MCP Server on stdio...")
+            println("Starting Handoff MCP Server on stdio...")
             McpServer.run()
         }
         args.contains("--pair") -> {
             val pairId = "pair-" + UUID.randomUUID().toString().take(8)
             println("==================================================")
-            println("       AgentApprove Desktop Pairing Mode          ")
+            println("         Handoff Desktop Pairing Mode             ")
             println("==================================================")
             println("Pair ID: $pairId")
             println("Relay  : agentapprove-relay.ismamhasanovi.workers.dev")
@@ -31,7 +31,7 @@ fun main(args: Array<String>) {
             println(">>>  $pairId  <<<")
             println()
             println("Or copy this pairing URL:")
-            println("agentapprove://pair?pairId=$pairId&host=agentapprove-relay.ismamhasanovi.workers.dev")
+            println("handoff://pair?pairId=$pairId&host=agentapprove-relay.ismamhasanovi.workers.dev")
             println("==================================================")
             println("Keep this terminal open, or use this pair ID for requests.")
         }
