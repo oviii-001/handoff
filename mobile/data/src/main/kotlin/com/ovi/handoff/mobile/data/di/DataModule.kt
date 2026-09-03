@@ -21,7 +21,7 @@ val dataModule = module {
             androidContext(),
             HandoffDatabase::class.java,
             "handoff_db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
     
     single { get<HandoffDatabase>().requestDao() }

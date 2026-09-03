@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 interface RelayRepository {
     fun observeRequests(pairId: String): Flow<PermissionRequest?>
+    fun observeHistory(): Flow<List<PermissionRequest>>
     suspend fun syncRequests(pairId: String): Result<Unit>
     suspend fun sendDecision(pairId: String, decision: PermissionDecision): Result<Unit>
+    suspend fun abortSession(pairId: String): Result<Unit>
 }

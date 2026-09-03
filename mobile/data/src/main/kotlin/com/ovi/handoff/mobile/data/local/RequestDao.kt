@@ -11,6 +11,9 @@ interface RequestDao {
     @Query("SELECT * FROM permission_requests WHERE isPending = 1")
     fun observePendingRequests(): Flow<List<PermissionRequestEntity>>
 
+    @Query("SELECT * FROM permission_requests ORDER BY createdAt DESC")
+    fun observeAllRequests(): Flow<List<PermissionRequestEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(request: PermissionRequestEntity)
 

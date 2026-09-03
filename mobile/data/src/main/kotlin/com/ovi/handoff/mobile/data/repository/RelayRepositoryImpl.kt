@@ -66,6 +66,12 @@ class RelayRepositoryImpl(
         }
     }
 
+    override fun observeHistory(): Flow<List<PermissionRequest>> {
+        return requestDao.observeAllRequests().map { list ->
+            list.map { it.toDomain() }
+        }
+    }
+
     override suspend fun syncRequests(pairId: String): Result<Unit> {
         startSyncJob(pairId)
         return Result.success(Unit)
@@ -80,6 +86,19 @@ class RelayRepositoryImpl(
             }
             withContext(Dispatchers.IO) {
                 requestDao.markAsResolved(decision.requestId)
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun abortSession(pairId: String): Result<Unit> {
+        return try {
+            client.webSocket(method = HttpMethod.Get, host = relayHost, path = "/ws/mobile/$pairId") {
+                val abortJson = """{"type":"abort","action":"emergency_stop"}"""
+                send(Frame.Text(abortJson))
+                close(CloseReason(CloseReason.Codes.NORMAL, "Session aborted"))
             }
             Result.success(Unit)
         } catch (e: Exception) {

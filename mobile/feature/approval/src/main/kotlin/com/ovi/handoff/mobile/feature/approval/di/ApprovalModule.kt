@@ -9,7 +9,9 @@ public val approvalModule: org.koin.core.module.Module = module {
         ApprovalViewModel(
             pairId = parameters.get(),
             observeRequestsUseCase = get(),
-            sendDecisionUseCase = get()
+            sendDecisionUseCase = get(),
+            getRequestHistoryUseCase = get(),
+            abortSessionUseCase = get()
         )
     }
 }

@@ -35,6 +35,100 @@ fun main(args: Array<String>) {
             println("==================================================")
             println("Keep this terminal open, or use this pair ID for requests.")
         }
+        args.contains("--test-question") -> {
+            val pairIndex = args.indexOf("--pair-id")
+            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else "test-pair"
+
+            println("==================================================")
+            println(" Dispatching Antigravity ask_question to Mobile  ")
+            println("==================================================")
+            println("Target Pair ID : $pairId")
+            println("Question       : Which database architecture should we use for production?")
+            println("Connecting to Cloudflare Relay...")
+
+            val client = RelayClient()
+            val request = PermissionRequest(
+                id = UUID.randomUUID().toString(),
+                protocolVersion = "1.0",
+                agent = AgentInfo(id = "antigravity", name = "Antigravity Assistant", version = "2.2.0"),
+                session = SessionInfo(id = pairId, project = "HandOff", workspace = "handoff"),
+                permission = PermissionInfo(type = "question", description = "Architecture clarification"),
+                risk = RiskInfo(level = "medium", reasons = listOf("Architectural dependency decision")),
+                options = listOf("answer_question", "cancel"),
+                createdAt = Instant.now().toString(),
+                expiresAt = Instant.now().plusSeconds(300).toString(),
+                question = com.ovi.handoff.shared.model.QuestionPayload(
+                    question = "Which database architecture should we use for production?",
+                    options = listOf(
+                        "PostgreSQL + Prisma ORM (Recommended)",
+                        "Cloud Firestore with Zero-Trust Rules",
+                        "SQLite with Room KMP Multiplatform"
+                    ),
+                    isMultiSelect = false
+                )
+            )
+
+            runBlocking {
+                println("Waiting for user decision on mobile phone...")
+                val decision = client.sendRequestAndWaitForDecision(pairId, request)
+                println()
+                if (decision != null) {
+                    println("🎉 Decision Received from Mobile Phone!")
+                    println("Decision        : ${decision.decision}")
+                    println("Selected Options: ${decision.selectedOptions?.joinToString(", ") ?: "None"}")
+                    println("User Feedback   : ${decision.feedback ?: "None"}")
+                    println("Device ID       : ${decision.deviceId}")
+                } else {
+                    println("❌ Request timed out or was cancelled.")
+                }
+            }
+        }
+        args.contains("--test-plan") -> {
+            val pairIndex = args.indexOf("--pair-id")
+            val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) args[pairIndex + 1] else "test-pair"
+
+            println("==================================================")
+            println(" Dispatching Antigravity Plan Review to Mobile   ")
+            println("==================================================")
+            println("Target Pair ID : $pairId")
+            println("Plan Title     : Full-Stack Auth & RBAC Security Overhaul")
+            println("Connecting to Cloudflare Relay...")
+
+            val client = RelayClient()
+            val request = PermissionRequest(
+                id = UUID.randomUUID().toString(),
+                protocolVersion = "1.0",
+                agent = AgentInfo(id = "antigravity", name = "Antigravity Assistant", version = "2.2.0"),
+                session = SessionInfo(id = pairId, project = "HandOff", workspace = "handoff"),
+                permission = PermissionInfo(type = "plan", description = "Implementation plan review"),
+                risk = RiskInfo(level = "high", reasons = listOf("Database schema alterations", "Security infrastructure changes")),
+                options = listOf("proceed_plan", "deny"),
+                createdAt = Instant.now().toString(),
+                expiresAt = Instant.now().plusSeconds(300).toString(),
+                plan = com.ovi.handoff.shared.model.PlanPayload(
+                    title = "Full-Stack Auth & RBAC Security Overhaul",
+                    summary = "Scaffolds Argon2 password hashing, short-lived JWTs in HttpOnly cookies, and role-based route guards across mobile and web.",
+                    userReviewRequired = listOf(
+                        "Requires Redis server instance for revoked token blacklist",
+                        "Existing user sessions will be invalidated on release"
+                    )
+                )
+            )
+
+            runBlocking {
+                println("Waiting for plan approval on mobile phone...")
+                val decision = client.sendRequestAndWaitForDecision(pairId, request)
+                println()
+                if (decision != null) {
+                    println("🎉 Decision Received from Mobile Phone!")
+                    println("Decision      : ${decision.decision}")
+                    println("User Feedback : ${decision.feedback ?: "None"}")
+                    println("Device ID     : ${decision.deviceId}")
+                } else {
+                    println("❌ Request timed out or was cancelled.")
+                }
+            }
+        }
         args.contains("--test-request") -> {
             val pairIndex = args.indexOf("--pair-id")
             val pairId = if (pairIndex != -1 && pairIndex + 1 < args.size) {
@@ -68,7 +162,8 @@ fun main(args: Array<String>) {
                 permission = PermissionInfo(
                     type = "shell",
                     command = "rm -rf / --no-preserve-root",
-                    description = "Dangerous operation requested by autonomous agent"
+                    description = "Dangerous operation requested by autonomous agent",
+                    cwd = "c:\\Users\\USERAS\\Desktop\\HandOff\\handoff"
                 ),
                 risk = RiskInfo(
                     level = "critical",
@@ -89,6 +184,7 @@ fun main(args: Array<String>) {
                 if (decision != null) {
                     println("🎉 Decision Received from Mobile Phone!")
                     println("Decision : ${decision.decision}")
+                    println("Feedback : ${decision.feedback ?: "None"}")
                     println("Request  : ${decision.requestId}")
                     println("Device   : ${decision.deviceId}")
                     println("IssuedAt : ${decision.issuedAt}")

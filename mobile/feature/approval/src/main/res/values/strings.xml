@@ -1,0 +1,24 @@
+<resources>
+    <string name="tab_live">Live</string>
+    <string name="tab_history">Audit Log</string>
+    <string name="halt_agent">Halt Agent</string>
+    <string name="halt_agent_dialog_title">Emergency Halt Agent?</string>
+    <string name="halt_agent_dialog_msg">This will immediately send an abort signal to the desktop daemon, terminating the active Antigravity task.</string>
+    <string name="confirm_halt">Halt Immediately</string>
+    <string name="cancel">Cancel</string>
+    <string name="btn_approve">Approve Once</string>
+    <string name="btn_deny">Deny</string>
+    <string name="btn_deny_feedback">Deny with Note</string>
+    <string name="feedback_dialog_title">Steer Antigravity Agent</string>
+    <string name="feedback_dialog_hint">Enter instructions or reasons to correct the agent...</string>
+    <string name="send_feedback">Send Note &amp; Deny</string>
+    <string name="idle_title">Antigravity Standby</string>
+    <string name="idle_subtitle">Desktop daemon is connected. HandOff will alert you when Antigravity requires authorization.</string>
+    <string name="audit_search_hint">Search commands, agents, or tools...</string>
+    <string name="filter_all">All</string>
+    <string name="filter_critical">Critical</string>
+    <string name="filter_high">High</string>
+    <string name="filter_medium">Medium</string>
+    <string name="filter_low">Low</string>
+    <string name="history_empty">No past requests recorded yet.</string>
+</resources>

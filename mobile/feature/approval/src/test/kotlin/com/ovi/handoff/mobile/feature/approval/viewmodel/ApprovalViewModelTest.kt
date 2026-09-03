@@ -1,6 +1,8 @@
 package com.ovi.handoff.mobile.feature.approval.viewmodel
 
 import app.cash.turbine.test
+import com.ovi.handoff.mobile.domain.usecase.AbortSessionUseCase
+import com.ovi.handoff.mobile.domain.usecase.GetRequestHistoryUseCase
 import com.ovi.handoff.mobile.domain.usecase.ObserveRequestsUseCase
 import com.ovi.handoff.mobile.domain.usecase.SendDecisionUseCase
 import com.ovi.handoff.shared.model.AgentInfo
@@ -32,6 +34,8 @@ class ApprovalViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var observeRequestsUseCase: ObserveRequestsUseCase
     private lateinit var sendDecisionUseCase: SendDecisionUseCase
+    private lateinit var getRequestHistoryUseCase: GetRequestHistoryUseCase
+    private lateinit var abortSessionUseCase: AbortSessionUseCase
     private lateinit var viewModel: ApprovalViewModel
 
     private val testPairId = "pair-123"
@@ -41,6 +45,9 @@ class ApprovalViewModelTest {
         Dispatchers.setMain(testDispatcher)
         observeRequestsUseCase = mockk()
         sendDecisionUseCase = mockk()
+        getRequestHistoryUseCase = mockk()
+        abortSessionUseCase = mockk()
+        every { getRequestHistoryUseCase() } returns flowOf(emptyList())
     }
 
     @After
@@ -74,13 +81,17 @@ class ApprovalViewModelTest {
         val request = createDummyRequest()
         every { observeRequestsUseCase(testPairId) } returns flowOf(request)
 
-        viewModel = ApprovalViewModel(testPairId, observeRequestsUseCase, sendDecisionUseCase)
+        viewModel = ApprovalViewModel(
+            testPairId,
+            observeRequestsUseCase,
+            sendDecisionUseCase,
+            getRequestHistoryUseCase,
+            abortSessionUseCase
+        )
 
         viewModel.uiState.test {
-            // Initial state might be emitted before collect
             val state = awaitItem()
             if (state.currentRequest == null) {
-                // If initial state was empty, wait for the update
                 val updatedState = awaitItem()
                 assertEquals(request, updatedState.currentRequest)
             } else {
@@ -95,10 +106,15 @@ class ApprovalViewModelTest {
         every { observeRequestsUseCase(testPairId) } returns flowOf(request)
         coEvery { sendDecisionUseCase(testPairId, match { it.decision == "approve_once" }) } returns Result.success(Unit)
 
-        viewModel = ApprovalViewModel(testPairId, observeRequestsUseCase, sendDecisionUseCase)
+        viewModel = ApprovalViewModel(
+            testPairId,
+            observeRequestsUseCase,
+            sendDecisionUseCase,
+            getRequestHistoryUseCase,
+            abortSessionUseCase
+        )
 
         viewModel.uiState.test {
-            // Wait for initial state and the loaded request
             var state = awaitItem()
             if (state.currentRequest == null) {
                 state = awaitItem()
@@ -123,10 +139,15 @@ class ApprovalViewModelTest {
         every { observeRequestsUseCase(testPairId) } returns flowOf(request)
         coEvery { sendDecisionUseCase(testPairId, match { it.decision == "deny" }) } returns Result.failure(Exception("Network error"))
 
-        viewModel = ApprovalViewModel(testPairId, observeRequestsUseCase, sendDecisionUseCase)
+        viewModel = ApprovalViewModel(
+            testPairId,
+            observeRequestsUseCase,
+            sendDecisionUseCase,
+            getRequestHistoryUseCase,
+            abortSessionUseCase
+        )
 
         viewModel.uiState.test {
-            // Wait for initial state and the loaded request
             var state = awaitItem()
             if (state.currentRequest == null) {
                 state = awaitItem()
@@ -143,5 +164,41 @@ class ApprovalViewModelTest {
             assertEquals("Network error", finalState.error)
             assertEquals(request, finalState.currentRequest)
         }
+    }
+
+    @Test
+    fun `switchTab changes active tab`() = runTest {
+        every { observeRequestsUseCase(testPairId) } returns flowOf(null)
+
+        viewModel = ApprovalViewModel(
+            testPairId,
+            observeRequestsUseCase,
+            sendDecisionUseCase,
+            getRequestHistoryUseCase,
+            abortSessionUseCase
+        )
+
+        assertEquals(ApprovalTab.LIVE, viewModel.uiState.value.selectedTab)
+        viewModel.switchTab(ApprovalTab.HISTORY)
+        assertEquals(ApprovalTab.HISTORY, viewModel.uiState.value.selectedTab)
+    }
+
+    @Test
+    fun `onAbortSession triggers abortSessionUseCase`() = runTest {
+        every { observeRequestsUseCase(testPairId) } returns flowOf(null)
+        coEvery { abortSessionUseCase(testPairId) } returns Result.success(Unit)
+
+        viewModel = ApprovalViewModel(
+            testPairId,
+            observeRequestsUseCase,
+            sendDecisionUseCase,
+            getRequestHistoryUseCase,
+            abortSessionUseCase
+        )
+
+        viewModel.onAbortSession()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Agent session aborted", viewModel.uiState.value.notificationMessage)
     }
 }
