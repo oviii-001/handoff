@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS push_tokens (
+    pair_id TEXT PRIMARY KEY,
+    token TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

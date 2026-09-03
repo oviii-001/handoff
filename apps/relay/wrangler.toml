@@ -1,0 +1,17 @@
+name = "agentapprove-relay"
+main = "src/index.ts"
+compatibility_date = "2023-12-01"
+
+[durable_objects]
+bindings = [
+  { name = "RELAY_ROOM", class_name = "RelayRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RelayRoom"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agentapprove-d1"
+database_id = "70243ecb-09b3-4393-819f-5c2869819491"

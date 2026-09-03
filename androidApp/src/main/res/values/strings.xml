@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">AgentApprove</string>
+    <string name="pairing_title">Pair New Device</string>
+    <string name="pairing_in_progress">Pairing with device...</string>
+    <string name="pairing_camera_permission">Camera permission is required to scan QR codes.</string>
+    <string name="pairing_grant_permission">Grant Permission</string>
+    <string name="pairing_manual_title">Or enter Pair Code manually</string>
+    <string name="pairing_connect_button">Connect &amp; Pair</string>
+    <string name="approval_title">Permission Request</string>
+    <string name="approval_waiting">Waiting for incoming agent requests...</string>
+    <string name="approval_approve">Approve</string>
+    <string name="approval_reject">Reject</string>
+</resources>
