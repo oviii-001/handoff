@@ -1,168 +1,233 @@
 package com.ovi.handoff.mobile.core.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ovi.handoff.mobile.core.theme.*
+import com.ovi.handoff.mobile.core.R
+import com.ovi.handoff.mobile.core.theme.ShapeExtraLarge
+import com.ovi.handoff.mobile.core.theme.ShapeFull
+import com.ovi.handoff.mobile.core.theme.ShapeLarge
+import com.ovi.handoff.mobile.core.theme.ShapeMedium
 
 @Composable
 public fun QuestionModal(
     question: String,
     options: List<String>,
     isMultiSelect: Boolean = false,
+    agentId: String = "antigravity",
+    agentName: String? = null,
+    projectOrWorkspace: String? = null,
     onSubmit: (selectedOptions: List<String>, writeIn: String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedOptions by remember { mutableStateOf(setOf<String>()) }
     var writeInText by remember { mutableStateOf("") }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkSurface)
-            .border(1.dp, AntigravityViolet.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+    Card(
+        shape = ShapeExtraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        modifier = modifier.fillMaxWidth()
     ) {
-        // Header
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(AntigravityVioletDark)
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            // Header Row: Agent Badge & Question Mode
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "ANTIGRAVITY DECISION",
-                    color = AntigravityVioletLight,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = MonospaceFont
-                )
-            }
-        }
-
-        // Question Title
-        Text(
-            text = question,
-            color = TextPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = 22.sp
-        )
-
-        // Options List
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            options.forEach { option ->
-                val isSelected = selectedOptions.contains(option)
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (isSelected) AntigravityViolet.copy(alpha = 0.15f) else DarkSurfaceVariant)
-                        .border(
-                            1.dp,
-                            if (isSelected) AntigravityViolet else DarkBorder,
-                            RoundedCornerShape(10.dp)
-                        )
-                        .clickable {
-                            selectedOptions = if (isMultiSelect) {
-                                if (isSelected) selectedOptions - option else selectedOptions + option
-                            } else {
-                                setOf(option)
-                            }
-                        }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (isMultiSelect) {
-                        Checkbox(
-                            checked = isSelected,
-                            onCheckedChange = null,
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = AntigravityViolet,
-                                uncheckedColor = TextSecondary
+                    AgentBadge(agentId = agentId, agentName = agentName)
+
+                    if (!projectOrWorkspace.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(ShapeFull)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = projectOrWorkspace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                        )
-                    } else {
-                        RadioButton(
-                            selected = isSelected,
-                            onClick = null,
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = AntigravityViolet,
-                                unselectedColor = TextSecondary
-                            )
-                        )
+                        }
                     }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(ShapeFull)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
                     Text(
-                        text = option,
-                        color = if (isSelected) TextPrimary else TextSecondary,
-                        fontSize = 14.sp,
-                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+                        text = if (isMultiSelect) stringResource(R.string.question_mode_multi) else stringResource(R.string.question_mode_single),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
-        }
 
-        // Write-in field
-        OutlinedTextField(
-            value = writeInText,
-            onValueChange = { writeInText = it },
-            placeholder = { Text("Other response or custom feedback...", fontSize = 13.sp, color = TextMuted) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = DarkBg,
-                unfocusedContainerColor = DarkBg,
-                focusedBorderColor = AntigravityViolet,
-                unfocusedBorderColor = DarkBorder,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary
-            ),
-            shape = RoundedCornerShape(10.dp),
-            singleLine = true
-        )
-
-        // Submit Button
-        Button(
-            onClick = {
-                onSubmit(
-                    selectedOptions.toList(),
-                    writeInText.ifBlank { null }
-                )
-            },
-            enabled = selectedOptions.isNotEmpty() || writeInText.isNotBlank(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AntigravityViolet,
-                contentColor = Color.White,
-                disabledContainerColor = DarkBorder,
-                disabledContentColor = TextMuted
-            )
-        ) {
+            // Question Title
             Text(
-                text = "Submit Decision",
+                text = question,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                lineHeight = 22.sp
             )
+
+            // Options List
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                options.forEach { option ->
+                    val isSelected = selectedOptions.contains(option)
+                    val rowContainer = if (isSelected) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHigh
+                    }
+                    val rowText = if (isSelected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ShapeLarge)
+                            .background(rowContainer)
+                            .clickable {
+                                selectedOptions = if (isMultiSelect) {
+                                    if (isSelected) selectedOptions - option else selectedOptions + option
+                                } else {
+                                    setOf(option)
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (isMultiSelect) {
+                            Checkbox(
+                                checked = isSelected,
+                                onCheckedChange = null,
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = MaterialTheme.colorScheme.primary,
+                                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        } else {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = null,
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = MaterialTheme.colorScheme.primary,
+                                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+                        Text(
+                            text = option,
+                            color = rowText,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Write-in field
+            OutlinedTextField(
+                value = writeInText,
+                onValueChange = { writeInText = it },
+                placeholder = {
+                    Text(
+                        text = stringResource(R.string.question_custom_placeholder),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp
+                    )
+                },
+                shape = ShapeLarge,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Submit Button
+            Button(
+                onClick = {
+                    onSubmit(
+                        selectedOptions.toList(),
+                        writeInText.trim().ifEmpty { null }
+                    )
+                },
+                enabled = selectedOptions.isNotEmpty() || writeInText.isNotBlank(),
+                shape = ShapeFull,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.question_submit_decision),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

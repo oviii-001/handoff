@@ -22,9 +22,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.*
 import java.util.concurrent.atomic.AtomicBoolean
 
+import com.ovi.handoff.mobile.domain.notification.NotificationNotifier
+
 class RelayRepositoryImpl(
     private val requestDao: RequestDao,
-    private val relayHost: String = "agentapprove-relay.ismamhasanovi.workers.dev"
+    private val relayHost: String = "agentapprove-relay.ismamhasanovi.workers.dev",
+    private val notificationNotifier: NotificationNotifier? = null
 ) : RelayRepository {
     private val client = HttpClient(CIO) {
         install(WebSockets) {
@@ -53,6 +56,7 @@ class RelayRepositoryImpl(
                                 try {
                                     val request = Json.decodeFromString(PermissionRequest.serializer(), text)
                                     requestDao.insert(request.toEntity())
+                                    notificationNotifier?.postPermissionRequestNotification(request, pairId)
                                 } catch (e: Exception) {
                                     // Non-PermissionRequest frame (e.g. heartbeat)
                                 }
@@ -87,6 +91,7 @@ class RelayRepositoryImpl(
             withContext(Dispatchers.IO) {
                 requestDao.markAsResolved(decision.requestId)
             }
+            notificationNotifier?.dismissNotification(decision.requestId)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -99,6 +104,17 @@ class RelayRepositoryImpl(
                 val abortJson = """{"type":"abort","action":"emergency_stop"}"""
                 send(Frame.Text(abortJson))
                 close(CloseReason(CloseReason.Codes.NORMAL, "Session aborted"))
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun clearHistory(): Result<Unit> {
+        return try {
+            withContext(Dispatchers.IO) {
+                requestDao.clearHistory()
             }
             Result.success(Unit)
         } catch (e: Exception) {

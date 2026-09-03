@@ -1,18 +1,47 @@
 package com.ovi.handoff.mobile.feature.pairing.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,7 +49,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import com.ovi.handoff.mobile.core.theme.*
+import com.ovi.handoff.mobile.core.theme.HandoffTheme
+import com.ovi.handoff.mobile.core.theme.MonospaceFont
+import com.ovi.handoff.mobile.core.theme.ShapeExtraLarge
+import com.ovi.handoff.mobile.core.theme.ShapeFull
+import com.ovi.handoff.mobile.core.theme.ShapeLarge
+import com.ovi.handoff.mobile.core.theme.ShapeMedium
+import com.ovi.handoff.mobile.feature.pairing.R
 import com.ovi.handoff.mobile.feature.pairing.ui.components.QrScanner
 import com.ovi.handoff.mobile.feature.pairing.viewmodel.PairingEvent
 import com.ovi.handoff.mobile.feature.pairing.viewmodel.PairingViewModel
@@ -32,10 +67,11 @@ public enum class PairingMode {
     MANUAL_ENTRY
 }
 
-@OptIn(ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 public fun PairingScreen(
     viewModel: PairingViewModel = koinViewModel(),
+    onNavigateBack: () -> Unit = {},
     onPairingSuccess: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -55,7 +91,31 @@ public fun PairingScreen(
     HandoffTheme {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            containerColor = DarkBg
+            containerColor = MaterialTheme.colorScheme.surface,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(R.string.pairing_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.pairing_nav_back),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            }
         ) { paddingValues ->
             Box(
                 modifier = Modifier
@@ -69,10 +129,10 @@ public fun PairingScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            CircularProgressIndicator(color = AntigravityViolet)
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                             Text(
-                                text = "Pairing with Antigravity Desktop...",
-                                color = TextPrimary,
+                                text = stringResource(R.string.pairing_in_progress),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -85,15 +145,16 @@ public fun PairingScreen(
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Text(
-                                text = "Error: ${uiState.error}",
-                                color = RiskCritical,
+                                text = stringResource(R.string.pairing_error_prefix, uiState.error ?: ""),
+                                color = MaterialTheme.colorScheme.error,
                                 fontSize = 15.sp
                             )
                             Button(
                                 onClick = { viewModel.onResumeScanning() },
-                                colors = ButtonDefaults.buttonColors(containerColor = AntigravityViolet)
+                                shape = ShapeFull,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) {
-                                Text("Try Again")
+                                Text(stringResource(R.string.pairing_try_again))
                             }
                         }
                     }
@@ -107,97 +168,138 @@ public fun PairingScreen(
                         ) {
                             // Header
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(AntigravityViolet))
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Pair with Antigravity",
-                                    color = TextPrimary,
+                                    text = stringResource(R.string.pairing_header_title),
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
 
-                            // Mode Selector Tabs
+                            // Mode Selector Tabs (M3 Expressive segmented pill, zero borders)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(DarkSurface)
-                                    .border(1.dp, DarkBorder, RoundedCornerShape(12.dp))
+                                    .clip(ShapeFull)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                     .padding(4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (selectedMode == PairingMode.QR_SCAN) AntigravityViolet else Color.Transparent)
+                                        .clip(ShapeFull)
+                                        .background(
+                                            if (selectedMode == PairingMode.QR_SCAN)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                Color.Transparent
+                                        )
                                         .clickable { selectedMode = PairingMode.QR_SCAN }
                                         .padding(vertical = 10.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "Scan QR Code",
-                                        color = if (selectedMode == PairingMode.QR_SCAN) Color.White else TextSecondary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        text = stringResource(R.string.pairing_tab_qr),
+                                        color = if (selectedMode == PairingMode.QR_SCAN)
+                                            MaterialTheme.colorScheme.onPrimary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
                                     )
                                 }
 
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (selectedMode == PairingMode.MANUAL_ENTRY) AntigravityViolet else Color.Transparent)
+                                        .clip(ShapeFull)
+                                        .background(
+                                            if (selectedMode == PairingMode.MANUAL_ENTRY)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                Color.Transparent
+                                        )
                                         .clickable { selectedMode = PairingMode.MANUAL_ENTRY }
                                         .padding(vertical = 10.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "Manual Code",
-                                        color = if (selectedMode == PairingMode.MANUAL_ENTRY) Color.White else TextSecondary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        text = stringResource(R.string.pairing_tab_manual),
+                                        color = if (selectedMode == PairingMode.MANUAL_ENTRY)
+                                            MaterialTheme.colorScheme.onPrimary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
                                     )
                                 }
                             }
 
-                            // Body Content
+                            // Mode Body
                             if (selectedMode == PairingMode.QR_SCAN) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .border(1.dp, DarkBorder, RoundedCornerShape(16.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (cameraPermissionState.status.isGranted) {
+                                if (cameraPermissionState.status.isGranted) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f)
+                                            .clip(ShapeExtraLarge)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                    ) {
                                         QrScanner(
-                                            onQrCodeScanned = viewModel::onQrCodeScanned,
+                                            onQrCodeScanned = { qr ->
+                                                viewModel.onQrCodeScanned(qr)
+                                            },
                                             modifier = Modifier.fillMaxSize()
                                         )
-                                    } else {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier.padding(24.dp),
-                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    }
+                                } else {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f)
+                                            .clip(ShapeExtraLarge)
+                                            .background(MaterialTheme.colorScheme.surfaceContainer)
+                                            .padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.camera_permission_needed_title),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = stringResource(R.string.camera_permission_needed_desc),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 13.sp,
+                                            lineHeight = 18.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Button(
+                                            onClick = { cameraPermissionState.launchPermissionRequest() },
+                                            shape = ShapeFull,
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                         ) {
                                             Text(
-                                                text = "Camera access required to scan the desktop pairing QR code.",
-                                                color = TextSecondary,
-                                                fontSize = 13.sp
+                                                text = stringResource(R.string.btn_grant_permission),
+                                                fontWeight = FontWeight.Bold
                                             )
-                                            Button(
-                                                onClick = { cameraPermissionState.launchPermissionRequest() },
-                                                colors = ButtonDefaults.buttonColors(containerColor = AntigravityViolet)
-                                            ) {
-                                                Text("Enable Camera")
-                                            }
                                         }
                                     }
                                 }
@@ -206,32 +308,37 @@ public fun PairingScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .weight(1f)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(DarkSurface)
-                                        .border(1.dp, DarkBorder, RoundedCornerShape(16.dp))
+                                        .clip(ShapeExtraLarge)
+                                        .background(MaterialTheme.colorScheme.surfaceContainer)
                                         .padding(20.dp),
                                     verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
                                     Text(
-                                        text = "Enter Pair ID or paste JSON payload:",
-                                        color = TextSecondary,
+                                        text = stringResource(R.string.manual_code_prompt),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 13.sp
                                     )
 
                                     OutlinedTextField(
                                         value = manualCode,
                                         onValueChange = { manualCode = it },
-                                        placeholder = { Text("e.g. test-pixel-99", color = TextMuted, fontSize = 13.sp) },
+                                        placeholder = {
+                                            Text(
+                                                text = stringResource(R.string.manual_code_hint),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                fontSize = 13.sp
+                                            )
+                                        },
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = OutlinedTextFieldDefaults.colors(
-                                            focusedContainerColor = DarkBg,
-                                            unfocusedContainerColor = DarkBg,
-                                            focusedBorderColor = AntigravityViolet,
-                                            unfocusedBorderColor = DarkBorder,
-                                            focusedTextColor = TextPrimary,
-                                            unfocusedTextColor = TextPrimary
+                                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedBorderColor = Color.Transparent,
+                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                                         ),
-                                        shape = RoundedCornerShape(10.dp)
+                                        shape = ShapeMedium
                                     )
 
                                     // Clipboard Paste Button
@@ -242,12 +349,18 @@ public fun PairingScreen(
                                                 manualCode = clipboard
                                             }
                                         },
-                                        modifier = Modifier.fillMaxWidth().height(44.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                                        border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(DarkBorder))
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(44.dp),
+                                        shape = ShapeFull,
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.primary
+                                        )
                                     ) {
-                                        Text("Paste from Clipboard", fontSize = 13.sp)
+                                        Text(
+                                            text = stringResource(R.string.btn_paste_from_clipboard),
+                                            fontSize = 13.sp
+                                        )
                                     }
 
                                     Spacer(modifier = Modifier.weight(1f))
@@ -259,14 +372,20 @@ public fun PairingScreen(
                                             }
                                         },
                                         enabled = manualCode.isNotBlank(),
-                                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(52.dp),
+                                        shape = ShapeFull,
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = AntigravityViolet,
-                                            contentColor = Color.White
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
                                         )
                                     ) {
-                                        Text("Connect & Pair", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text(
+                                            text = stringResource(R.string.btn_connect_and_pair),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
                                     }
                                 }
                             }
@@ -277,4 +396,3 @@ public fun PairingScreen(
         }
     }
 }
-

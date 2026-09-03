@@ -18,6 +18,7 @@ kotlin {
 dependencies {
     implementation(project(":mobile:domain"))
     implementation(project(":mobile:data"))
+    implementation(project(":mobile:core"))
     implementation(project(":mobile:feature:pairing"))
     implementation(project(":mobile:feature:approval"))
     implementation(project(":shared"))

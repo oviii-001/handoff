@@ -60,3 +60,40 @@ data class PlanPayload(
     val summary: String,
     val userReviewRequired: List<String> = emptyList()
 )
+
+/**
+ * Resolves a human-readable project or workspace name for display in notifications and UI headers.
+ * Extracts folder basename if the project or workspace was transmitted as a full filesystem path.
+ */
+public fun PermissionRequest.resolveProjectOrWorkspace(): String? {
+    if (!session.project.isNullOrBlank()) {
+        val base = session.project.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
+        return base.ifBlank { session.project }
+    }
+    if (!session.workspace.isNullOrBlank()) {
+        val base = session.workspace.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
+        return base.ifBlank { session.workspace }
+    }
+    if (!permission.cwd.isNullOrBlank()) {
+        val base = permission.cwd.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
+        if (base.isNotBlank()) return base
+    }
+    return null
+}
+
+/**
+ * Normalizes verbose IDE/agent names to clean, canonical identifiers.
+ * E.g., "Antigravity Assistant" -> "Antigravity", "Cursor Composer" -> "Cursor", "Codex Agent" -> "Codex".
+ */
+public fun AgentInfo.cleanName(): String {
+    val raw = name.ifBlank { id }.trim()
+    return when {
+        raw.contains("antigravity", ignoreCase = true) -> "Antigravity"
+        raw.contains("cursor", ignoreCase = true) -> "Cursor"
+        raw.contains("codex", ignoreCase = true) -> "Codex"
+        raw.contains("claude", ignoreCase = true) -> "Claude"
+        raw.contains("windsurf", ignoreCase = true) -> "Windsurf"
+        raw.contains("copilot", ignoreCase = true) -> "Copilot"
+        else -> raw.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+}

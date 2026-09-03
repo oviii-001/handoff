@@ -18,5 +18,8 @@ interface RequestDao {
     fun insert(request: PermissionRequestEntity)
 
     @Query("UPDATE permission_requests SET isPending = 0 WHERE id = :id")
-    fun markAsResolved(id: String)
+    fun markAsResolved(id: String): Int
+
+    @Query("DELETE FROM permission_requests WHERE isPending = 0")
+    fun clearHistory(): Int
 }

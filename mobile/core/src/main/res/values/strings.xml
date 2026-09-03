@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status_relay_connected">Relay Connected</string>
+    <string name="status_reconnecting">Reconnecting…</string>
+    <string name="plan_approval_tag">Plan Approval</string>
+    <string name="plan_title_prefix">Execution Plan</string>
+    <string name="plan_steps_count">%1$d steps</string>
+    <string name="plan_files_count">%1$d files</string>
+    <string name="plan_user_review_notice">User review required for these steps</string>
+    <string name="plan_btn_proceed">Proceed</string>
+    <string name="plan_btn_request_changes">Request Changes</string>
+    <string name="plan_feedback_hint">Enter instructions for modifying the plan…</string>
+    <string name="plan_btn_submit_feedback">Submit Feedback</string>
+    <string name="plan_btn_cancel">Cancel</string>
+    <string name="diff_lines_added">+%1$d</string>
+    <string name="diff_lines_removed">-%1$d</string>
+    <string name="btn_copy">Copy</string>
+    <string name="btn_copied">✓ Copied</string>
+    <string name="toast_command_copied">Command copied to clipboard</string>
+    <string name="question_submit">Submit Answer</string>
+    <string name="question_write_in_hint">Type your response…</string>
+    <string name="question_tag">Question</string>
+    <string name="question_mode_multi">Multiple Choice</string>
+    <string name="question_mode_single">Single Choice</string>
+    <string name="question_custom_placeholder">Or type custom response…</string>
+    <string name="question_submit_decision">Submit Decision</string>
+    <string name="plan_tag_implementation">Implementation Plan</string>
+    <string name="plan_warning_review">⚠️ User Review Required</string>
+    <string name="plan_describe_changes">Describe changes needed…</string>
+    <string name="plan_send_changes">Send Changes</string>
+    <string name="terminal_tab_command">Command</string>
+    <string name="terminal_tab_env">Environment</string>
+</resources>

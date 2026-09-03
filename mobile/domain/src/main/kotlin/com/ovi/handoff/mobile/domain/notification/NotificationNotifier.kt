@@ -1,0 +1,13 @@
+package com.ovi.handoff.mobile.domain.notification
+
+import com.ovi.handoff.shared.model.PermissionRequest
+
+/**
+ * Domain-level contract for notifying the user of pending agent permission requests.
+ * Implementations in platform/app layers handle high-priority Android notifications,
+ * lock-screen visibility, and direct notification shade action buttons.
+ */
+public interface NotificationNotifier {
+    public fun postPermissionRequestNotification(request: PermissionRequest, pairId: String)
+    public fun dismissNotification(requestId: String)
+}

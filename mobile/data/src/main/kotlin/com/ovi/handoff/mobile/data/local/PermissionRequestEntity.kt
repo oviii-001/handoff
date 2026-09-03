@@ -35,7 +35,7 @@ fun PermissionRequest.toEntity() = PermissionRequestEntity(
     id = id,
     protocolVersion = protocolVersion,
     agentId = agent.id,
-    agentName = agent.name,
+    agentName = agent.cleanName(),
     sessionId = session.id,
     permissionType = permission.type,
     permissionCommand = permission.command,
@@ -60,7 +60,7 @@ fun PermissionRequest.toEntity() = PermissionRequestEntity(
 fun PermissionRequestEntity.toDomain() = PermissionRequest(
     id = id,
     protocolVersion = protocolVersion,
-    agent = AgentInfo(id = agentId, name = agentName),
+    agent = AgentInfo(id = agentId, name = AgentInfo(id = agentId, name = agentName).cleanName()),
     session = SessionInfo(id = sessionId),
     permission = PermissionInfo(
         type = permissionType,

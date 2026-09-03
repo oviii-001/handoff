@@ -1,25 +1,51 @@
 package com.ovi.handoff.mobile.core.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ovi.handoff.mobile.core.theme.*
+import com.ovi.handoff.mobile.core.R
+import com.ovi.handoff.mobile.core.theme.RiskHighColor
+import com.ovi.handoff.mobile.core.theme.RiskHighContainerColor
+import com.ovi.handoff.mobile.core.theme.ShapeExtraLarge
+import com.ovi.handoff.mobile.core.theme.ShapeFull
+import com.ovi.handoff.mobile.core.theme.ShapeLarge
+import com.ovi.handoff.mobile.core.theme.ShapeMedium
 
 @Composable
 public fun PlanApprovalCard(
     title: String,
     summary: String,
     userReviewRequired: List<String> = emptyList(),
+    agentId: String = "antigravity",
+    agentName: String? = null,
+    projectOrWorkspace: String? = null,
     onProceed: () -> Unit,
     onRequestChanges: (feedback: String) -> Unit,
     modifier: Modifier = Modifier
@@ -27,151 +53,188 @@ public fun PlanApprovalCard(
     var showChangesInput by remember { mutableStateOf(false) }
     var changesFeedback by remember { mutableStateOf("") }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkSurface)
-            .border(1.dp, AntigravityVioletLight.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+    Card(
+        shape = ShapeExtraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        modifier = modifier.fillMaxWidth()
     ) {
-        // Tag
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Header: Agent Badge & Project/Workspace
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AgentBadge(agentId = agentId, agentName = agentName)
+
+                    if (!projectOrWorkspace.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(ShapeFull)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = projectOrWorkspace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(ShapeFull)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.plan_tag_implementation),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // Title
+            Text(
+                text = title,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 24.sp
+            )
+
+            // Summary Box
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(AntigravityVioletDark)
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            ) {
-                Text(
-                    text = "ANTIGRAVITY PLAN REVIEW",
-                    color = AntigravityVioletLight,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = MonospaceFont
-                )
-            }
-        }
-
-        // Title
-        Text(
-            text = title,
-            color = TextPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            lineHeight = 24.sp
-        )
-
-        // Summary box
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(DarkSurfaceVariant)
-                .padding(12.dp)
-        ) {
-            Text(
-                text = summary,
-                color = TextSecondary,
-                fontSize = 13.sp,
-                lineHeight = 18.sp
-            )
-        }
-
-        // Warnings / User Review Required
-        if (userReviewRequired.isNotEmpty()) {
-            Column(
-                modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(RiskHighContainer)
-                    .border(1.dp, RiskHighBorder, RoundedCornerShape(10.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                    .clip(ShapeLarge)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .padding(14.dp)
             ) {
                 Text(
-                    text = "⚠️ User Review Required",
-                    color = RiskHigh,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    text = summary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
                 )
-                userReviewRequired.forEach { item ->
+            }
+
+            // Warnings / User Review Required
+            if (userReviewRequired.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ShapeLarge)
+                        .background(RiskHighContainerColor)
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text(
-                        text = "• $item",
-                        color = TextPrimary,
-                        fontSize = 12.sp
+                        text = stringResource(R.string.plan_warning_review),
+                        color = RiskHighColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
                     )
+                    userReviewRequired.forEach { item ->
+                        Text(
+                            text = "• $item",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
                 }
             }
-        }
 
-        // Changes Feedback Input (if toggled)
-        if (showChangesInput) {
-            OutlinedTextField(
-                value = changesFeedback,
-                onValueChange = { changesFeedback = it },
-                placeholder = { Text("Describe changes needed for Antigravity...", fontSize = 13.sp, color = TextMuted) },
+            // Changes input field
+            if (showChangesInput) {
+                OutlinedTextField(
+                    value = changesFeedback,
+                    onValueChange = { changesFeedback = it },
+                    placeholder = {
+                        Text(
+                            text = stringResource(R.string.plan_describe_changes),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                    },
+                    shape = ShapeLarge,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // Actions
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = DarkBg,
-                    unfocusedContainerColor = DarkBg,
-                    focusedBorderColor = RiskHigh,
-                    unfocusedBorderColor = DarkBorder,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
-                ),
-                shape = RoundedCornerShape(10.dp)
-            )
-        }
-
-        // Action Buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (!showChangesInput) {
-                OutlinedButton(
-                    onClick = { showChangesInput = true },
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(DarkBorder))
-                ) {
-                    Text("Request Changes", fontSize = 13.sp)
-                }
-            } else {
-                Button(
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                FilledTonalButton(
                     onClick = {
-                        if (changesFeedback.isNotBlank()) {
+                        if (showChangesInput && changesFeedback.isNotBlank()) {
                             onRequestChanges(changesFeedback)
+                        } else {
+                            showChangesInput = !showChangesInput
                         }
                     },
-                    enabled = changesFeedback.isNotBlank(),
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = RiskHigh,
-                        contentColor = Color.Black
-                    )
+                    shape = ShapeFull,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp)
                 ) {
-                    Text("Send Feedback", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(
+                        text = if (showChangesInput && changesFeedback.isNotBlank()) {
+                            stringResource(R.string.plan_send_changes)
+                        } else {
+                            stringResource(R.string.plan_btn_request_changes)
+                        },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
-            }
 
-            Button(
-                onClick = onProceed,
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AntigravityViolet,
-                    contentColor = Color.White
-                )
-            ) {
-                Text("Proceed", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Button(
+                    onClick = onProceed,
+                    shape = ShapeFull,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.plan_btn_proceed),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }

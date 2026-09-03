@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:name=".HandoffApplication"
@@ -29,6 +35,23 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <receiver
+            android:name=".notification.NotificationActionReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.ovi.handoff.ACTION_APPROVE" />
+                <action android:name="com.ovi.handoff.ACTION_DENY" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".notification.TestNotificationReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.ovi.handoff.ACTION_TRIGGER_TEST_NOTIFICATION" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.startup.InitializationProvider"

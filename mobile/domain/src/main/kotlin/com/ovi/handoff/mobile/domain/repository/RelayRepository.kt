@@ -10,4 +10,5 @@ interface RelayRepository {
     suspend fun syncRequests(pairId: String): Result<Unit>
     suspend fun sendDecision(pairId: String, decision: PermissionDecision): Result<Unit>
     suspend fun abortSession(pairId: String): Result<Unit>
+    suspend fun clearHistory(): Result<Unit>
 }

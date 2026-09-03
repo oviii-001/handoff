@@ -11,6 +11,14 @@ import com.ovi.handoff.mobile.feature.approval.di.approvalModule
 import org.koin.androidx.workmanager.koin.workManagerFactory
 import timber.log.Timber
 
+import com.ovi.handoff.mobile.domain.notification.NotificationNotifier
+import com.ovi.handoff.notification.HandoffNotificationManager
+import org.koin.dsl.module
+
+val appModule = module {
+    single<NotificationNotifier> { HandoffNotificationManager(androidContext()) }
+}
+
 class HandoffApplication : Application() {
     override fun onCreate() {
         super.onCreate()
@@ -22,6 +30,7 @@ class HandoffApplication : Application() {
             androidContext(this@HandoffApplication)
             workManagerFactory()
             modules(
+                appModule,
                 domainModule,
                 dataModule,
                 pairingModule,

@@ -1,13 +1,12 @@
 package com.ovi.handoff.mobile.core.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -16,25 +15,33 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ovi.handoff.mobile.core.theme.*
+import com.ovi.handoff.mobile.core.theme.MonospaceFont
+import com.ovi.handoff.mobile.core.theme.RiskCriticalColor
+import com.ovi.handoff.mobile.core.theme.RiskCriticalContainerColor
+import com.ovi.handoff.mobile.core.theme.RiskHighColor
+import com.ovi.handoff.mobile.core.theme.RiskHighContainerColor
+import com.ovi.handoff.mobile.core.theme.RiskLowColor
+import com.ovi.handoff.mobile.core.theme.RiskLowContainerColor
+import com.ovi.handoff.mobile.core.theme.RiskMediumColor
+import com.ovi.handoff.mobile.core.theme.RiskMediumContainerColor
+import com.ovi.handoff.mobile.core.theme.ShapeFull
 
 @Composable
 public fun RiskBadge(
     level: String,
     modifier: Modifier = Modifier
 ) {
-    val (color, containerColor, borderColor) = when (level.lowercase()) {
-        "critical" -> Triple(RiskCritical, RiskCriticalContainer, RiskCriticalBorder)
-        "high" -> Triple(RiskHigh, RiskHighContainer, RiskHighBorder)
-        "medium" -> Triple(RiskMedium, RiskMediumContainer, RiskMediumBorder)
-        else -> Triple(RiskLow, RiskLowContainer, RiskLowBorder)
+    val (color, containerColor) = when (level.lowercase()) {
+        "critical" -> RiskCriticalColor to RiskCriticalContainerColor
+        "high" -> RiskHighColor to RiskHighContainerColor
+        "medium" -> RiskMediumColor to RiskMediumContainerColor
+        else -> RiskLowColor to RiskLowContainerColor
     }
 
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(ShapeFull)
             .background(containerColor)
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -42,7 +49,7 @@ public fun RiskBadge(
         Box(
             modifier = Modifier
                 .size(7.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(ShapeFull)
                 .background(color)
         )
         Text(

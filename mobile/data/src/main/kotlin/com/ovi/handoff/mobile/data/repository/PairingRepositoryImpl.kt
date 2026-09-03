@@ -28,6 +28,15 @@ public class PairingRepositoryImpl(
         return prefs.getString(KEY_PAIR_ID, null)
     }
 
+    override suspend fun clearPairing(): Result<Unit> {
+        return try {
+            prefs.edit().clear().commit()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private companion object {
         private const val KEY_PAIR_ID = "paired_session_id"
         private const val KEY_PUBLIC_KEY = "paired_desktop_public_key"

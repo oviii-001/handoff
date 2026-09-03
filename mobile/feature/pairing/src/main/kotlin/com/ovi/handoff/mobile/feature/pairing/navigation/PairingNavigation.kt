@@ -10,10 +10,12 @@ import kotlinx.serialization.Serializable
 public data object PairingRoute
 
 public fun NavGraphBuilder.pairingScreen(
+    onNavigateBack: () -> Unit = {},
     onPairingSuccess: () -> Unit
 ) {
     composable<PairingRoute> {
         PairingScreen(
+            onNavigateBack = onNavigateBack,
             onPairingSuccess = onPairingSuccess
         )
     }

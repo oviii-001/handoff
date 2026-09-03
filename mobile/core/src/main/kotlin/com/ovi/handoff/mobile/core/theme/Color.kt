@@ -2,44 +2,67 @@ package com.ovi.handoff.mobile.core.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Dark Slate Developer Backgrounds
-val DarkBg: Color = Color(0xFF0D1117)
-val DarkSurface: Color = Color(0xFF161B22)
-val DarkSurfaceVariant: Color = Color(0xFF21262D)
-val DarkBorder: Color = Color(0xFF30363D)
-val TextPrimary: Color = Color(0xFFF0F6FC)
-val TextSecondary: Color = Color(0xFF8B949E)
-val TextMuted: Color = Color(0xFF6E7681)
+// ============================================================================
+// Material 3 Expressive Tonal Foundation Colors
+// ============================================================================
 
-// Antigravity Brand Violet & Accents
-val AntigravityViolet: Color = Color(0xFF8B5CF6)
-val AntigravityVioletLight: Color = Color(0xFFA78BFA)
-val AntigravityVioletDark: Color = Color(0xFF5B21B6)
+// Primary: Antigravity Violet Family (Deepmind)
+val M3PrimaryDark: Color = Color(0xFFD0BCFF)
+val M3OnPrimaryDark: Color = Color(0xFF381E72)
+val M3PrimaryContainerDark: Color = Color(0xFF4F378B)
+val M3OnPrimaryContainerDark: Color = Color(0xFFEADDFF)
 
-// Semantic Risk Tokens
-val RiskCritical: Color = Color(0xFFFF4D4D)
-val RiskCriticalContainer: Color = Color(0xFF321214)
-val RiskCriticalBorder: Color = Color(0xFF7F1D1D)
+// Secondary: Cursor Vivid Cyan Family (Anysphere Composer)
+val M3SecondaryDark: Color = Color(0xFF70D2E6)
+val M3OnSecondaryDark: Color = Color(0xFF00363F)
+val M3SecondaryContainerDark: Color = Color(0xFF004E5B)
+val M3OnSecondaryContainerDark: Color = Color(0xFF97EBFD)
 
-val RiskHigh: Color = Color(0xFFFFAA00)
-val RiskHighContainer: Color = Color(0xFF38230D)
-val RiskHighBorder: Color = Color(0xFF78350F)
+// Tertiary: Codex Cyber Emerald Family (OpenAI)
+val M3TertiaryDark: Color = Color(0xFF7CDA9B)
+val M3OnTertiaryDark: Color = Color(0xFF00391B)
+val M3TertiaryContainerDark: Color = Color(0xFF00522B)
+val M3OnTertiaryContainerDark: Color = Color(0xFF98F7B5)
 
-val RiskMedium: Color = Color(0xFF38BDF8)
-val RiskMediumContainer: Color = Color(0xFF0C2438)
-val RiskMediumBorder: Color = Color(0xFF0369A1)
+// Error & Risk Foundation
+val M3ErrorDark: Color = Color(0xFFFFB4AB)
+val M3OnErrorDark: Color = Color(0xFF690005)
+val M3ErrorContainerDark: Color = Color(0xFF93000A)
+val M3OnErrorContainerDark: Color = Color(0xFFFFDAD6)
 
-val RiskLow: Color = Color(0xFF34D399)
-val RiskLowContainer: Color = Color(0xFF0B281E)
-val RiskLowBorder: Color = Color(0xFF065F46)
+// Neutral Tone-Based Surfaces (True M3 Expressive Architecture)
+val M3SurfaceLowestDark: Color = Color(0xFF0D0F14)
+val M3SurfaceLowDark: Color = Color(0xFF141720)
+val M3SurfaceDark: Color = Color(0xFF181C26)
+val M3SurfaceHighDark: Color = Color(0xFF222736)
+val M3SurfaceHighestDark: Color = Color(0xFF2C3245)
+val M3SurfaceBrightDark: Color = Color(0xFF384058)
+val M3SurfaceDimDark: Color = Color(0xFF10131A)
 
-// Terminal Inspector Tokens
-val TerminalBg: Color = Color(0xFF0A0D12)
-val TerminalBorder: Color = Color(0xFF21262D)
-val TerminalText: Color = Color(0xFFE6EDF3)
-val TerminalGreen: Color = Color(0xFF7EE787)
-val TerminalCyan: Color = Color(0xFF79C0FF)
-val TerminalYellow: Color = Color(0xFFD29922)
-val TerminalDotRed: Color = Color(0xFFFF5F56)
-val TerminalDotYellow: Color = Color(0xFFFFBD2E)
-val TerminalDotGreen: Color = Color(0xFF27C93F)
+val M3OnSurfaceDark: Color = Color(0xFFE2E7F4)
+val M3OnSurfaceVariantDark: Color = Color(0xFFC3C8D8)
+val M3OutlineDark: Color = Color(0xFF8D92A3)
+val M3OutlineVariantDark: Color = Color(0xFF434756)
+
+// ============================================================================
+// Code Diff Syntax Tokens (For Codex & Cursor Code Patches)
+// ============================================================================
+val DiffAddContainer: Color = Color(0xFF103322)
+val DiffAddOnContainer: Color = Color(0xFF4ADE80)
+val DiffRemoveContainer: Color = Color(0xFF3E151A)
+val DiffRemoveOnContainer: Color = Color(0xFFF87171)
+
+// ============================================================================
+// Semantic Risk Tonal Tokens (M3 Container + OnContainer Pairs)
+// ============================================================================
+val RiskCriticalColor: Color = Color(0xFFFF6B6B)
+val RiskCriticalContainerColor: Color = Color(0xFF3D1115)
+
+val RiskHighColor: Color = Color(0xFFFFB038)
+val RiskHighContainerColor: Color = Color(0xFF3B2308)
+
+val RiskMediumColor: Color = Color(0xFF4FC3F7)
+val RiskMediumContainerColor: Color = Color(0xFF0D2C3D)
+
+val RiskLowColor: Color = Color(0xFF66BB6A)
+val RiskLowContainerColor: Color = Color(0xFF103118)

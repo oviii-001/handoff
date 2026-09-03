@@ -2,14 +2,44 @@ package com.ovi.handoff.mobile.feature.approval.ui.components
 
 import android.app.Activity
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.outlined.Folder
+import com.ovi.handoff.shared.model.cleanName
+import com.ovi.handoff.shared.model.resolveProjectOrWorkspace
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,18 +49,24 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ovi.handoff.mobile.core.components.AgentBadge
+import com.ovi.handoff.mobile.core.components.DiffViewerCard
 import com.ovi.handoff.mobile.core.components.PlanApprovalCard
 import com.ovi.handoff.mobile.core.components.QuestionModal
 import com.ovi.handoff.mobile.core.components.RiskBadge
 import com.ovi.handoff.mobile.core.components.TerminalCard
 import com.ovi.handoff.mobile.core.security.BiometricAuthHelper
-import com.ovi.handoff.mobile.core.theme.*
+import com.ovi.handoff.mobile.core.theme.MonospaceFont
+import com.ovi.handoff.mobile.core.theme.ShapeExtraLarge
+import com.ovi.handoff.mobile.core.theme.ShapeFull
+import com.ovi.handoff.mobile.core.theme.ShapeLarge
+import com.ovi.handoff.mobile.core.theme.ShapeMedium
 import com.ovi.handoff.mobile.feature.approval.R
-import com.ovi.handoff.shared.model.PermissionRequest
+import com.ovi.handoff.mobile.feature.approval.ui.model.PermissionRequestUiModel
 
 @Composable
 public fun LiveRequestView(
-    request: PermissionRequest,
+    request: PermissionRequestUiModel,
     isSending: Boolean,
     onApprove: () -> Unit,
     onReject: (feedback: String?) -> Unit,
@@ -42,25 +78,32 @@ public fun LiveRequestView(
     val context = LocalContext.current
     var showFeedbackDialog by remember { mutableStateOf(false) }
     var feedbackText by remember { mutableStateOf("") }
+    val projectOrWorkspace = request.projectOrWorkspace
 
-    // If request is Antigravity Question
+    // If request is Question
     if (request.question != null) {
         QuestionModal(
-            question = request.question!!.question,
-            options = request.question!!.options,
-            isMultiSelect = request.question!!.isMultiSelect,
+            question = request.question.question,
+            options = request.question.options,
+            isMultiSelect = request.question.isMultiSelect,
+            agentId = request.agentId,
+            agentName = request.agentName,
+            projectOrWorkspace = projectOrWorkspace,
             onSubmit = onSubmitQuestion,
             modifier = modifier
         )
         return
     }
 
-    // If request is Antigravity Plan Review
+    // If request is Plan Review
     if (request.plan != null) {
         PlanApprovalCard(
-            title = request.plan!!.title,
-            summary = request.plan!!.summary,
-            userReviewRequired = request.plan!!.userReviewRequired,
+            title = request.plan.title,
+            summary = request.plan.summary,
+            userReviewRequired = request.plan.userReviewRequired,
+            agentId = request.agentId,
+            agentName = request.agentName,
+            projectOrWorkspace = projectOrWorkspace,
             onProceed = onProceedPlan,
             onRequestChanges = onRequestPlanChanges,
             modifier = modifier
@@ -68,105 +111,288 @@ public fun LiveRequestView(
         return
     }
 
-    // Standard Command / Tool Request Card
+    // Live Request Container
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkSurface)
-            .border(1.dp, DarkBorder, RoundedCornerShape(16.dp))
-            .padding(16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Agent & Session Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        // Agent, Risk & Session Info Card
+        Card(
+            shape = ShapeExtraLarge,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(AntigravityViolet)
-                )
-                Text(
-                    text = request.agent.name,
-                    color = TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            RiskBadge(level = request.risk.level)
-        }
-
-        // Terminal Inspector Card
-        TerminalCard(
-            command = request.permission.command ?: request.permission.target ?: "Execute action",
-            toolType = request.permission.type,
-            cwd = request.permission.cwd
-        )
-
-        // Risk Reasons Box
-        if (request.risk.reasons.isNotEmpty()) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(DarkSurfaceVariant)
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Agent Badge, Project/Workspace Badge & Risk Badge Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AgentBadge(
+                            agentId = request.agentId,
+                            agentName = request.agentName,
+                            version = request.agentVersion
+                        )
+
+                        if (!projectOrWorkspace.isNullOrBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(ShapeFull)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                    .padding(horizontal = 9.dp, vertical = 5.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Folder,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = projectOrWorkspace,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    RiskBadge(level = request.riskLevel)
+                }
+
+                // Description
                 Text(
-                    text = "Risk Analysis:",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
+                    text = request.description ?: request.permissionType,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = MonospaceFont
+                    lineHeight = 22.sp
                 )
-                request.risk.reasons.forEach { reason ->
-                    Text(
-                        text = "• $reason",
-                        color = TextPrimary,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
-                    )
+
+                // Risk Reasons
+                if (request.riskReasons.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ShapeMedium)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        request.riskReasons.forEach { reason ->
+                            Row(
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp).padding(top = 2.dp)
+                                )
+                                Text(
+                                    text = reason,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    lineHeight = 17.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Workspace & Project Details Section
+                val project = request.project
+                val workspace = request.workspace
+                val cwd = request.cwd
+
+                if (!project.isNullOrBlank() || !workspace.isNullOrBlank() || !cwd.isNullOrBlank()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ShapeMedium)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (!project.isNullOrBlank()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "${stringResource(R.string.label_project)}:",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = project,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 12.sp,
+                                    fontFamily = MonospaceFont,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        if (!workspace.isNullOrBlank()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "${stringResource(R.string.label_workspace)}:",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = workspace,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 12.sp,
+                                    fontFamily = MonospaceFont,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        if (!cwd.isNullOrBlank()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "${stringResource(R.string.label_cwd)}:",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = cwd,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 12.sp,
+                                    fontFamily = MonospaceFont
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // Action Buttons Row
-        if (isSending) {
-            Box(
+        // Action Content: Diff Viewer OR Terminal Card
+        if (!request.diff.isNullOrBlank()) {
+            DiffViewerCard(
+                filePath = request.target ?: stringResource(R.string.code_changes_default),
+                diffContent = request.diff!!,
+                agentId = request.agentId,
+                agentName = request.agentName,
+                projectOrWorkspace = projectOrWorkspace
+            )
+        } else if (!request.command.isNullOrBlank()) {
+            TerminalCard(
+                command = request.command!!,
+                toolType = request.permissionType,
+                cwd = request.target,
+                agentId = request.agentId,
+                agentName = request.agentName,
+                projectOrWorkspace = projectOrWorkspace
+            )
+        }
+
+        // Primary & Secondary Action Buttons
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Hero Action: 56dp Primary Button
+            Button(
+                onClick = {
+                    if (request.riskLevel.equals("critical", ignoreCase = true)) {
+                        (context as? Activity)?.let { activity ->
+                            BiometricAuthHelper.authenticate(
+                                activity = activity,
+                                title = context.getString(R.string.biometric_auth_title),
+                                subtitle = context.getString(R.string.biometric_auth_subtitle),
+                                onSuccess = onApprove,
+                                onError = { _ -> }
+                            )
+                        } ?: onApprove()
+                    } else {
+                        onApprove()
+                    }
+                },
+                enabled = !isSending,
+                shape = ShapeFull,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
+                    .height(56.dp)
             ) {
-                CircularProgressIndicator(color = AntigravityViolet)
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Deny with Note Button (Steer Agent)
-                OutlinedButton(
-                    onClick = { showFeedbackDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = RiskHigh
-                    ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(RiskHighBorder)
+                if (isSending) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
                     )
+                } else {
+                    if (request.riskLevel.equals("critical", ignoreCase = true)) {
+                        Icon(
+                            imageVector = Icons.Filled.Fingerprint,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(
+                        text = stringResource(R.string.btn_approve),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Secondary Row: Deny with Note & Quick Deny
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                FilledTonalButton(
+                    onClick = { showFeedbackDialog = true },
+                    enabled = !isSending,
+                    shape = ShapeFull,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier
+                        .weight(1.5f)
+                        .height(50.dp)
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.EditNote,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = stringResource(R.string.btn_deny_feedback),
                         fontSize = 13.sp,
@@ -174,116 +400,109 @@ public fun LiveRequestView(
                     )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                FilledTonalButton(
+                    onClick = { onReject(null) },
+                    enabled = !isSending,
+                    shape = ShapeFull,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
                 ) {
-                    // Direct Deny Button
-                    Button(
-                        onClick = { onReject(null) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = RiskCriticalContainer,
-                            contentColor = RiskCritical
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(R.string.btn_deny),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-
-                    // Approve Once Button (Biometric gated for critical/high)
-                    Button(
-                        onClick = {
-                            val isCritical = request.risk.level.equals("critical", ignoreCase = true) ||
-                                            request.risk.level.equals("high", ignoreCase = true)
-                            if (isCritical && context is Activity) {
-                                BiometricAuthHelper.authenticate(
-                                    activity = context,
-                                    onSuccess = onApprove,
-                                    onError = { /* fallback or toast */ onApprove() }
-                                )
-                            } else {
-                                onApprove()
-                            }
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AntigravityViolet,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(R.string.btn_approve),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.btn_deny),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
     }
 
-    // Feedback Dialog (Deny with Note)
+    // Steering Feedback Dialog
     if (showFeedbackDialog) {
         AlertDialog(
             onDismissRequest = { showFeedbackDialog = false },
-            containerColor = DarkSurface,
             title = {
                 Text(
                     text = stringResource(R.string.feedback_dialog_title),
-                    color = TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
                 )
             },
             text = {
-                OutlinedTextField(
-                    value = feedbackText,
-                    onValueChange = { feedbackText = it },
-                    placeholder = {
-                        Text(
-                            text = stringResource(R.string.feedback_dialog_hint),
-                            color = TextMuted,
-                            fontSize = 13.sp
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = DarkBg,
-                        unfocusedContainerColor = DarkBg,
-                        focusedBorderColor = RiskHigh,
-                        unfocusedBorderColor = DarkBorder,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = stringResource(R.string.feedback_guidance_prompt),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp
+                    )
+                    OutlinedTextField(
+                        value = feedbackText,
+                        onValueChange = { feedbackText = it },
+                        placeholder = {
+                            Text(
+                                text = stringResource(R.string.feedback_dialog_hint),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp
+                            )
+                        },
+                        shape = ShapeLarge,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(110.dp)
+                    )
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
+                        val note = feedbackText.trim().ifEmpty { null }
                         showFeedbackDialog = false
-                        onReject(feedbackText.ifBlank { null })
+                        onReject(note)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = RiskHigh, contentColor = Color.Black)
+                    shape = ShapeFull,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
                 ) {
-                    Text(stringResource(R.string.send_feedback), fontWeight = FontWeight.Bold)
+                    Text(
+                        text = stringResource(R.string.send_feedback),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showFeedbackDialog = false }) {
-                    Text(stringResource(R.string.cancel), color = TextSecondary)
+                TextButton(
+                    onClick = { showFeedbackDialog = false }
+                ) {
+                    Text(
+                        text = stringResource(R.string.cancel),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-            }
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = ShapeExtraLarge
         )
     }
 }
