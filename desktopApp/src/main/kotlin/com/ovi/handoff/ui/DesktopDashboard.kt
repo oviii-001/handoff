@@ -27,6 +27,37 @@ import java.time.Instant
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+
+@Composable
+fun QrCodeView(content: String, modifier: Modifier = Modifier, fgColor: Color = Color.White, bgColor: Color = Color.Transparent) {
+    val bitMatrix = remember(content) {
+        val writer = QRCodeWriter()
+        writer.encode(content, BarcodeFormat.QR_CODE, 200, 200)
+    }
+
+    Canvas(modifier = modifier) {
+        drawRect(color = bgColor, size = size)
+        val cellWidth = size.width / bitMatrix.width
+        val cellHeight = size.height / bitMatrix.height
+
+        for (x in 0 until bitMatrix.width) {
+            for (y in 0 until bitMatrix.height) {
+                if (bitMatrix.get(x, y)) {
+                    drawRect(
+                        color = fgColor,
+                        topLeft = Offset(x * cellWidth, y * cellHeight),
+                        size = Size(cellWidth, cellHeight)
+                    )
+                }
+            }
+        }
+    }
+}
 
 data class ActivityLogItem(
     val id: String,
@@ -252,49 +283,64 @@ fun DesktopDashboard() {
 
                                 Spacer(Modifier.height(14.dp))
 
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
-                                    modifier = Modifier.fillMaxWidth()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                    val url = "handoff://pair?pairId=$pairId&host=$relayHost"
+                                    
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color.White,
+                                        modifier = Modifier.padding(end = 16.dp)
                                     ) {
-                                        Text(
-                                            text = pairId,
-                                            fontSize = 20.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.primary
+                                        QrCodeView(
+                                            content = url,
+                                            modifier = Modifier.size(110.dp).padding(8.dp),
+                                            fgColor = Color.Black,
+                                            bgColor = Color.White
                                         )
+                                    }
 
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            FilledTonalButton(
-                                                onClick = { copyToClipboard(pairId) },
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFF0F172A),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Text(
+                                                text = pairId,
+                                                fontSize = 20.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(Modifier.height(12.dp))
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Text("Copy Code", fontSize = 12.sp)
-                                            }
-                                            OutlinedButton(
-                                                onClick = {
-                                                    val url = "handoff://pair?pairId=$pairId&host=$relayHost"
-                                                    copyToClipboard(url)
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                            ) {
-                                                Text("Copy URL", fontSize = 12.sp)
-                                            }
-                                            OutlinedButton(
-                                                onClick = {
-                                                    pairId = DesktopConfigManager.generateNewPairId()
-                                                    statusMessage = "Generated new Pair ID: $pairId"
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                            ) {
-                                                Text("Regenerate", fontSize = 12.sp)
+                                                FilledTonalButton(
+                                                    onClick = { copyToClipboard(pairId) },
+                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Text("Copy Code", fontSize = 12.sp)
+                                                }
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        pairId = DesktopConfigManager.generateNewPairId()
+                                                        statusMessage = "Generated new Pair ID: $pairId"
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Text("Regenerate", fontSize = 12.sp)
+                                                }
                                             }
                                         }
                                     }
