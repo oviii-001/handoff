@@ -18,4 +18,9 @@ dependencies {
 
 application {
     mainClass.set("com.ovi.handoff.MainKt")
+    applicationDefaultJvmArgs = listOf(
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8"
+    )
 }

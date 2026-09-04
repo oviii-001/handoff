@@ -1,43 +1,54 @@
 package com.ovi.handoff.core
 
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
-import com.google.zxing.EncodeHintType
 
 object TerminalQrGenerator {
     /**
-     * Generates an ASCII QR Code for the terminal.
-     * Uses the ANSI escape codes for inverted colors (black/white blocks)
-     * 
-     * █ = black module
-     *   = white module
+     * Generates a compact, highly scannable terminal QR code using Unicode half-blocks (▀, ▄, █).
+     * By packing two vertical modules per character cell, the vertical height is cut by 50%
+     * and horizontal width is cut by 50% (1 char per column instead of 2).
+     *
+     * Uses ANSI black-background + white-foreground sequences for universal scannability
+     * across both dark and light terminal themes.
      */
-    fun printQrCode(url: String, width: Int = 40) {
+    fun printQrCode(url: String, width: Int = 0) {
         val hints = mapOf(
-            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
+            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.L,
             EncodeHintType.MARGIN to 1
         )
         
         val writer = QRCodeWriter()
-        val bitMatrix = writer.encode(url, BarcodeFormat.QR_CODE, width, width, hints)
+        val bitMatrix = writer.encode(url, BarcodeFormat.QR_CODE, 0, 0, hints)
+        val matrixWidth = bitMatrix.width
+        val matrixHeight = bitMatrix.height
 
-        println()
-        for (y in 0 until bitMatrix.height) {
+        val out = java.io.PrintStream(System.out, true, "UTF-8")
+        val ansiBlackBgWhiteFg = "\u001B[40m\u001B[97m"
+        val ansiReset = "\u001B[0m"
+
+        out.println()
+        for (y in 0 until matrixHeight step 2) {
             val row = StringBuilder()
-            // Add a small margin for terminal readability
-            row.append("  ") 
-            for (x in 0 until bitMatrix.width) {
-                if (bitMatrix.get(x, y)) {
-                    // Black block (two characters wide to make it roughly square in mono fonts)
-                    row.append("██")
-                } else {
-                    // White block
-                    row.append("  ")
+            row.append("    ") // Margin indent for clean terminal display
+            row.append(ansiBlackBgWhiteFg)
+            for (x in 0 until matrixWidth) {
+                val topDark = bitMatrix.get(x, y)
+                val bottomDark = if (y + 1 < matrixHeight) bitMatrix.get(x, y + 1) else false
+
+                val char = when {
+                    topDark && bottomDark -> ' '
+                    !topDark && !bottomDark -> '█'
+                    !topDark && bottomDark -> '▀'
+                    else -> '▄'
                 }
+                row.append(char)
             }
-            println(row.toString())
+            row.append(ansiReset)
+            out.println(row.toString())
         }
-        println()
+        out.println()
     }
 }

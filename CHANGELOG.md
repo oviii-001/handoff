@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `handoff_status`: Returns current pair ID, connected IDE, and relay status.
   - **Cryptographic Request Signing**: Every MCP authorization request is signed with local hardware/software Ed25519 keys via `KeyStoreManager`.
   - **Auto-Installer Support**: Updated `McpAutoInstaller` to target compiled application binaries (`cli.bat` / `cli`) and auto-inject into `~/.gemini/config/mcp_config.json` and `~/.gemini/antigravity-ide/mcp_config.json`.
+- **Compact & High-Contrast Terminal QR Code**:
+  - Replaced oversized full-block renderer with Unicode half-block characters (`▀`, `▄`, `█`), cutting QR vertical height and horizontal width by 50% so it fits cleanly in any terminal window without scrolling.
+  - Enforced UTF-8 output streams (`chcp 65001`, JVM args) and ANSI contrast sequences (`\u001B[40m\u001B[97m`) so QR codes render with a solid quiet zone and scan instantly on phone cameras across both dark and light terminal themes.
 
 ### Changed
 - **CLI Architecture Refactor**:
