@@ -5,6 +5,27 @@ All notable changes to the HandOff project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-04
+
+### Added
+- **Push Notifications & Background Sync**:
+  - Implemented Firebase Cloud Messaging (FCM) integration for remote wake-ups.
+  - Added background WorkManager jobs that sync with Room DB even when the app is closed.
+  - Implemented Webhook relay endpoint to forward pending requests to FCM.
+- **CLI Wrapper Scripts**:
+  - Added `handoff.bat` and `handoff.sh` to the project root for streamlined execution.
+  - Added `--install` argument for automated MCP configuration injection into Claude Desktop, Cursor, and Antigravity IDE.
+  - Added `--exec <cmd>` argument to manually intercept and dispatch any arbitrary terminal command.
+  - Added ASCII QR Code generation directly in the terminal for faster pairing without a GUI.
+- **Resiliency & Security**:
+  - Implemented full-jitter exponential backoff for WebSocket reconnections in the mobile client (`RelayRepositoryImpl`).
+  - Replaced legacy Regex JSON parsing in `CommandTokenizer` with strict AST-based validation for robust MCP command interception.
+  - Enforced hardware-backed biometric security constraints (CryptoObject) with automatic fallback handling.
+
+### Changed
+- **BREAKING CHANGE**: Completely removed the Compose Multiplatform Desktop UI (`:desktopApp` UI package) in favor of a lightweight, headless CLI architecture, drastically reducing the binary size and improving MCP integration speed.
+- Updated `SETUP_GUIDE.md` to reflect the new purely CLI-based setup process.
+
 ## [1.2.0] - 2026-09-04
 
 ### Added

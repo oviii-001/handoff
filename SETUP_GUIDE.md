@@ -185,13 +185,13 @@ In your project terminal, execute:
 
 ```bash
 # Windows PowerShell
-.\gradlew :desktopApp:run --args="--pair"
+.\handoff.bat --pair
 
 # macOS / Linux
-./gradlew :desktopApp:run --args="--pair"
+./handoff.sh --pair
 ```
 
-The terminal will generate a unique session identifier:
+The terminal will generate a unique session identifier and an ASCII QR Code:
 ```text
 ==================================================
        HandOff Desktop Pairing Mode          
@@ -199,8 +199,7 @@ The terminal will generate a unique session identifier:
 Pair ID: pair-a1b2c3d4
 Relay  : agentapprove-relay.ismamhasanovi.workers.dev
 
-Enter this code manually on your phone:
->>>  pair-a1b2c3d4  <<<
+[ASCII QR Code Output Here]
 
 Or copy this pairing URL:
 handoff://pair?pairId=pair-a1b2c3d4&host=agentapprove-relay.ismamhasanovi.workers.dev
@@ -220,7 +219,20 @@ handoff://pair?pairId=pair-a1b2c3d4&host=agentapprove-relay.ismamhasanovi.worker
 
 HandOff implements the **Model Context Protocol (MCP)** stdio interface, enabling seamless integration with any modern AI coding assistant.
 
-### 1. Claude Desktop
+### Auto-Installation (Recommended)
+You can automatically inject HandOff into supported IDEs (Claude Desktop, Cursor, Antigravity) without manually editing JSON configuration files. Simply run:
+
+```bash
+# Windows
+.\handoff.bat --install
+
+# macOS / Linux
+./handoff.sh --install
+```
+
+### Manual Configuration
+
+#### 1. Claude Desktop
 Add HandOff to your `claude_desktop_config.json`:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -229,12 +241,8 @@ Add HandOff to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "handoff": {
-      "command": "java",
-      "args": [
-        "-jar",
-        "c:/Users/USERAS/Desktop/HandOff/handoff/desktopApp/build/libs/desktopApp.jar",
-        "--mcp"
-      ],
+      "command": "c:/Users/USERAS/Desktop/HandOff/handoff/handoff.bat",
+      "args": ["--mcp"],
       "env": {
         "HANDOFF_RELAY_HOST": "agentapprove-relay.ismamhasanovi.workers.dev"
       }
@@ -243,16 +251,16 @@ Add HandOff to your `claude_desktop_config.json`:
 }
 ```
 
-### 2. Cursor Composer
+#### 2. Cursor Composer
 Open Cursor Settings &rarr; **Features** &rarr; **MCP Servers** &rarr; **Add New MCP Server**:
 - **Name**: `handoff`
 - **Type**: `command`
-- **Command**: `.\gradlew :desktopApp:run --args="--mcp"`
+- **Command**: `.\handoff.bat --mcp`
 
-### 3. Claude Code CLI
+#### 3. Claude Code CLI
 Add HandOff to your Claude Code project configuration:
 ```bash
-claude mcp add handoff -- gradlew :desktopApp:run --args="--mcp"
+claude mcp add handoff -- handoff.bat --mcp
 ```
 
 ### 4. Antigravity IDE
@@ -280,7 +288,7 @@ Use the built-in test suites in `:desktopApp` to simulate real agent requests wi
 ### 1. Test Dangerous Shell Execution (Root Deletion Simulation)
 Dispatches a critical risk shell action:
 ```bash
-.\gradlew :desktopApp:run --args="--test-request --pair-id <YOUR_PAIR_ID>"
+.\handoff.bat --test-request --pair-id <YOUR_PAIR_ID>
 ```
 - **Mobile Behavior**: The phone displays a **CRITICAL** risk card with `rm -rf / --no-preserve-root`.
 - **Action**: Tap **Reject** or **Approve (Requires Biometric)**.
@@ -289,7 +297,7 @@ Dispatches a critical risk shell action:
 ### 2. Test Multi-Step Implementation Plan Review
 Dispatches a complex multi-file refactoring plan:
 ```bash
-.\gradlew :desktopApp:run --args="--test-plan --pair-id <YOUR_PAIR_ID>"
+.\handoff.bat --test-plan --pair-id <YOUR_PAIR_ID>
 ```
 - **Mobile Behavior**: The phone displays the **PlanApprovalCard** with bulleted steps, affected files, and user feedback field.
 - **Action**: Add an optional steering note (e.g., *"Make sure to keep backward compatibility"*) and tap **Send Changes**.
@@ -297,7 +305,7 @@ Dispatches a complex multi-file refactoring plan:
 ### 3. Test Interactive Architectural Question
 Dispatches a single or multi-choice question:
 ```bash
-.\gradlew :desktopApp:run --args="--test-question --pair-id <YOUR_PAIR_ID>"
+.\handoff.bat --test-question --pair-id <YOUR_PAIR_ID>
 ```
 - **Mobile Behavior**: The phone renders the **QuestionModal** with selectable radio buttons.
 - **Action**: Select an option or provide a custom write-in response and tap **Submit Decision**.
