@@ -331,11 +331,12 @@ fun SettingsScreen(
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Column {
+                                    val isDefaultRelay = uiState.relayHost == "agentapprove-relay.ismamhasanovi.workers.dev"
                                     Text(
-                                        text = stringResource(R.string.settings_relay_server),
+                                        text = if (isDefaultRelay) stringResource(R.string.settings_relay_server_default) else stringResource(R.string.settings_relay_server_custom),
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        color = if (isDefaultRelay) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary
                                     )
                                     Text(
                                         text = uiState.relayHost,

@@ -58,6 +58,8 @@
     <string name="settings_relay_title">Relay &amp; Active Session</string>
     <string name="settings_relay_subtitle">End-to-end WebSocket bridge configuration</string>
     <string name="settings_relay_server">Relay Server</string>
+    <string name="settings_relay_server_default">Default Public Relay</string>
+    <string name="settings_relay_server_custom">Custom Private Relay</string>
     <string name="settings_pair_id">Session Pair ID</string>
     <string name="settings_copy_pair_id">Copy Pair ID</string>
     <string name="settings_pair_id_copied">Pair ID copied to clipboard</string>
