@@ -29,7 +29,7 @@ HandOff enables developers to safely delegate tasks to autonomous coding agents 
 |                                    │                                    |
 |                         (MCP / Tool Dispatch)                           |
 |                                    ▼                                    |
-|  [Handoff Desktop Daemon / McpServer] (:desktopApp)                     |
+|  [Handoff Desktop Daemon / McpServer] (:cli)                     |
 |  - Cryptographic request signing & session state                        |
 +------------------------------------+------------------------------------+
                                      │
@@ -270,7 +270,7 @@ Add the server definition to `~/.gemini/antigravity-ide/mcp_config.json`:
   "mcpServers": {
     "handoff": {
       "command": "gradlew.bat",
-      "args": [":desktopApp:run", "--args=--mcp"],
+      "args": [":cli:run", "--args=--mcp"],
       "env": {
         "HANDOFF_RELAY_HOST": "agentapprove-relay.ismamhasanovi.workers.dev"
       }
@@ -283,7 +283,7 @@ Add the server definition to `~/.gemini/antigravity-ide/mcp_config.json`:
 
 ## Step 5: End-to-End Testing & Verification
 
-Use the built-in test suites in `:desktopApp` to simulate real agent requests without needing a live agent session:
+Use the built-in test suites in `:cli` to simulate real agent requests without needing a live agent session:
 
 ### 1. Test Dangerous Shell Execution (Root Deletion Simulation)
 Dispatches a critical risk shell action:

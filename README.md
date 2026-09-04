@@ -31,7 +31,7 @@ Approve or reject executions in real-time, from anywhere in the world, with a si
 
 HandOff is designed around a strict Clean Architecture pattern and operates across three primary nodes:
 
-1. **Desktop Daemon (`/desktopApp`)**: A headless CLI that intercepts agent requests via MCP, signs them cryptographically, and dispatches them over WebSockets.
+1. **Desktop Daemon (`/cli`)**: A headless CLI that intercepts agent requests via MCP, signs them cryptographically, and dispatches them over WebSockets.
 2. **Cloudflare Relay (`/apps/relay`)**: A low-latency edge broker utilizing Durable Objects for persistent bidirectional state synchronization and webhook forwarding.
 3. **Android Client (`/mobile`)**: A native Kotlin application that serves as the hardware authenticator, communicating with the relay and persisting audit logs locally.
 

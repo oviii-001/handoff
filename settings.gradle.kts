@@ -33,7 +33,7 @@ plugins {
 
 include(":androidApp")
 include(":shared")
-include(":desktopApp")
+include(":cli")
 
 include(":mobile:domain")
 include(":mobile:data")

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-BIN_PATH="$DIR/desktopApp/build/install/desktopApp/bin/desktopApp"
+DIR="$(cd "$(dirname "$0")" && pwd)"
+BIN_PATH="$DIR/cli/build/install/cli/bin/cli"
 
 if [ ! -f "$BIN_PATH" ]; then
-    echo "[Handoff] Building desktop CLI..."
-    "$DIR/gradlew" :desktopApp:installDist -q
+    echo "Building HandOff CLI..."
+    "$DIR/gradlew" :cli:installDist -q
 fi
 
 "$BIN_PATH" "$@"
