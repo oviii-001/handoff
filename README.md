@@ -22,7 +22,8 @@ Approve or reject executions in real-time, from anywhere in the world, with a si
 ## Features
 
 - **Real-Time Interception**: Seamlessly pauses agent executions pending your explicit mobile authorization.
-- **Agent Agnostic**: Out-of-the-box MCP (Model Context Protocol) support for Claude Desktop, Cursor, and Antigravity IDE.
+- **Dynamic IDE & Workspace Awareness**: Instantly identifies connected AI IDE clients (Antigravity, Cursor, Claude Code, VSCode, IntelliJ) and active project workspace folders on Android.
+- **Agent Agnostic**: Out-of-the-box MCP (Model Context Protocol) support for Antigravity IDE, Cursor, Claude Desktop, and Claude Code.
 - **Zero-Trust Security**: End-to-end cryptographic signing using hardware-backed Ed25519 keys.
 - **Self-Hosted Infrastructure**: Edge-deployed WebSocket broker utilizing Cloudflare Durable Objects.
 - **Offline-First Mobile App**: Native Android client built with Jetpack Compose Material 3 Expressive, backed by Room and Firebase Cloud Messaging for instant background wake-ups.

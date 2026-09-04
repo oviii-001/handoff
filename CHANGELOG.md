@@ -5,6 +5,31 @@ All notable changes to the HandOff project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-09-04
+
+### Added
+- **Dynamic IDE & Workspace Detection**:
+  - Automatically identifies connected AI IDE clients (Antigravity, Cursor, Claude Code, VSCode, IntelliJ, Android Studio, Gemini) via MCP `clientInfo` and environment variables.
+  - Dynamically detects and resolves the active workspace folder name from MCP `workspaceFolders` or project directories.
+  - Added `@Serializable data class SessionAnnouncement` to the shared communication protocol, broadcasted over WebSockets immediately upon MCP client initialization.
+  - Persisted active IDE and workspace metadata in `PairingRepository` via `SharedPreferences`, enabling Android to display the connected agent and workspace even when standing by with zero pending requests.
+  - Displayed connected IDE chip in the Standby Hero card, Agent Mesh card with IDE version and workspace folder, and an active workspace indicator badge in the top app bar.
+- **Production-Grade MCP Server Overhaul**:
+  - **Eliminated Stdout Pollution**: Redirected all startup greetings, diagnostic logs, and build notices to `System.err` / `>&2`. The `stdout` stream is strictly reserved for pure JSON-RPC 2.0 messages, resolving parsing errors in Antigravity and other MCP clients.
+  - **Comprehensive Protocol Support**: Implemented handlers for `initialize`, `notifications/initialized`, `tools/list`, `resources/list`, `prompts/list`, and `ping`, with standard JSON-RPC `-32601` error responses for unsupported methods.
+  - **Rich Zero-Trust Tools**:
+    - `handoff_approve`: Prompts mobile device for zero-trust authorization before executing dangerous commands or modifying files.
+    - `handoff_ask_question`: Presents interactive multiple-choice questions on mobile to clarify agent requirements.
+    - `handoff_request_plan_approval`: Submits architectural implementation plans for human review before proceeding.
+    - `handoff_status`: Returns current pair ID, connected IDE, and relay status.
+  - **Cryptographic Request Signing**: Every MCP authorization request is signed with local hardware/software Ed25519 keys via `KeyStoreManager`.
+  - **Auto-Installer Support**: Updated `McpAutoInstaller` to target compiled application binaries (`cli.bat` / `cli`) and auto-inject into `~/.gemini/config/mcp_config.json` and `~/.gemini/antigravity-ide/mcp_config.json`.
+
+### Changed
+- **CLI Architecture Refactor**:
+  - Renamed legacy `:desktopApp` module and directory to `:cli` across Gradle build scripts, launch wrappers, and documentation.
+  - Updated `handoff.bat` and `handoff.sh` to execute the fast standalone distribution binary (`cli/build/install/cli/bin/cli.bat`).
+
 ## [1.3.1] - 2026-09-04
 
 ### Changed

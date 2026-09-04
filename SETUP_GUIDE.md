@@ -264,13 +264,17 @@ claude mcp add handoff -- handoff.bat --mcp
 ```
 
 ### 4. Antigravity IDE
-Add the server definition to `~/.gemini/antigravity-ide/mcp_config.json`:
+The easiest method is running the auto-installer:
+```bash
+.\handoff.bat --install
+```
+Or manually add the server definition to `~/.gemini/config/mcp_config.json` (or `~/.gemini/antigravity-ide/mcp_config.json`):
 ```json
 {
   "mcpServers": {
     "handoff": {
-      "command": "gradlew.bat",
-      "args": [":cli:run", "--args=--mcp"],
+      "command": "C:\\path\\to\\handoff\\cli\\build\\install\\cli\\bin\\cli.bat",
+      "args": ["--mcp"],
       "env": {
         "HANDOFF_RELAY_HOST": "agentapprove-relay.ismamhasanovi.workers.dev"
       }
@@ -278,6 +282,7 @@ Add the server definition to `~/.gemini/antigravity-ide/mcp_config.json`:
   }
 }
 ```
+*(On macOS/Linux, replace `cli.bat` with `./cli/build/install/cli/bin/cli`)*
 
 ---
 
