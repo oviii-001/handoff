@@ -65,7 +65,7 @@ HandOff is designed using **Clean Architecture + MVVM** and an **Offline-First R
 ### Prerequisites
 - JDK 17 or 21
 - Android Studio Ladybug / Meerkat (Android SDK 35 / 36)
-- Android device or emulator (tested on Android 15 / 16 KB page-size hardware, Google Pixel 9)
+- Android device or emulator (tested on Android 17 / 16 KB page-size hardware, Google Pixel 9)
 - Node.js 18+ & Wrangler (for Cloudflare Relay deployment)
 
 ### 1. Cloudflare Relay
