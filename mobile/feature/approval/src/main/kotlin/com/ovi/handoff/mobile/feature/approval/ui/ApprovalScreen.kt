@@ -3,32 +3,24 @@ package com.ovi.handoff.mobile.feature.approval.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.AlertDialog
@@ -55,23 +47,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.ovi.handoff.mobile.core.components.StatusPill
 import com.ovi.handoff.mobile.core.theme.HandoffTheme
 import com.ovi.handoff.mobile.core.theme.RiskCriticalColor
 import com.ovi.handoff.mobile.core.theme.ShapeExtraLarge
 import com.ovi.handoff.mobile.core.theme.ShapeFull
 import com.ovi.handoff.mobile.feature.approval.R
-import com.ovi.handoff.mobile.feature.approval.ui.components.ActiveSessionDashboard
-import com.ovi.handoff.mobile.feature.approval.ui.components.AuditHistoryView
-import com.ovi.handoff.mobile.feature.approval.ui.components.LiveRequestView
-import com.ovi.handoff.mobile.feature.approval.ui.components.UnpairedHomeView
+import com.ovi.handoff.mobile.feature.approval.ui.audit.AuditScreen
+import com.ovi.handoff.mobile.feature.approval.ui.home.HomeScreen
 import com.ovi.handoff.mobile.feature.approval.ui.settings.SettingsScreen
 import com.ovi.handoff.mobile.feature.approval.viewmodel.ApprovalTab
 import com.ovi.handoff.mobile.feature.approval.viewmodel.ApprovalViewModel
@@ -80,7 +68,7 @@ import org.koin.core.parameter.parametersOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-public fun ApprovalScreen(
+fun ApprovalScreen(
     pairId: String? = null,
     onNavigateToPairingQr: () -> Unit = {},
     viewModel: ApprovalViewModel = koinViewModel { parametersOf(pairId) }
@@ -153,9 +141,9 @@ public fun ApprovalScreen(
                             ) {
                                 Icon(
                                     imageVector = if (uiState.selectedTab == ApprovalTab.AUDIT) {
-                                        Icons.Filled.ReceiptLong
+                                        Icons.AutoMirrored.Filled.ReceiptLong
                                     } else {
-                                        Icons.Outlined.ReceiptLong
+                                        Icons.AutoMirrored.Outlined.ReceiptLong
                                     },
                                     contentDescription = stringResource(R.string.nav_audit)
                                 )
@@ -200,61 +188,14 @@ public fun ApprovalScreen(
                 ) { tab ->
                     when (tab) {
                         ApprovalTab.HOME -> {
-                            Scaffold(
-                                topBar = {
-                                    HomeTopAppBar(
-                                        isPaired = uiState.isPaired,
-                                        activeProjectOrWorkspace = activeProjectOrWorkspace,
-                                        onHaltAgent = { showHaltDialog = true }
-                                    )
-                                },
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ) { homePadding ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(homePadding)
-                                ) {
-                                    AnimatedContent(
-                                        targetState = uiState.isPaired to (uiState.displayedRequest != null),
-                                        transitionSpec = {
-                                            fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) togetherWith
-                                                fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
-                                        },
-                                        label = "home_content_animation"
-                                    ) { (isPaired, hasRequest) ->
-                                        if (!isPaired) {
-                                            UnpairedHomeView(
-                                                isPairing = uiState.isPairing,
-                                                pairingError = uiState.pairingError,
-                                                onNavigateToPairingQr = onNavigateToPairingQr,
-                                                onPairWithCode = viewModel::pairWithCode
-                                            )
-                                        } else if (hasRequest && uiState.displayedRequest != null) {
-                                            LiveRequestView(
-                                                request = uiState.displayedRequest!!,
-                                                isSending = uiState.isSendingDecision,
-                                                onApprove = viewModel::onApprove,
-                                                onReject = viewModel::onReject,
-                                                onSubmitQuestion = viewModel::onSubmitQuestion,
-                                                onProceedPlan = viewModel::onProceedPlan,
-                                                onRequestPlanChanges = viewModel::onRequestPlanChanges,
-                                                modifier = Modifier.padding(16.dp)
-                                            )
-                                        } else {
-                                            ActiveSessionDashboard(
-                                                pairId = uiState.pairId ?: pairId ?: "session",
-                                                historyCount = uiState.historyRequests.size,
-                                                connectedAgent = uiState.connectedAgent,
-                                                workspaceName = activeProjectOrWorkspace,
-                                                recentActivity = uiState.recentActivity,
-                                                onNavigateToAuditLog = { viewModel.switchTab(ApprovalTab.AUDIT) },
-                                                onHaltAgent = { showHaltDialog = true }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            HomeScreen(
+                                uiState = uiState,
+                                pairId = pairId,
+                                activeProjectOrWorkspace = activeProjectOrWorkspace,
+                                viewModel = viewModel,
+                                onNavigateToPairingQr = onNavigateToPairingQr,
+                                onShowHaltDialog = { showHaltDialog = true }
+                            )
                         }
                         ApprovalTab.AUDIT -> {
                             Scaffold(
@@ -267,14 +208,13 @@ public fun ApprovalScreen(
                                 },
                                 containerColor = MaterialTheme.colorScheme.surface
                             ) { auditPadding ->
-                                AuditHistoryView(
+                                AuditScreen(
                                     requests = uiState.historyRequests,
                                     searchQuery = uiState.searchQuery,
                                     filterRisk = uiState.filterRisk,
                                     selectedAgentId = uiState.selectedAgentFilter,
                                     onSearchChanged = viewModel::setSearchQuery,
                                     onFilterRiskChanged = viewModel::setFilterRisk,
-                                    onClearHistory = viewModel::clearAuditHistory,
                                     modifier = Modifier.padding(auditPadding)
                                 )
                             }
@@ -409,66 +349,6 @@ public fun ApprovalScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun HomeTopAppBar(
-    isPaired: Boolean,
-    activeProjectOrWorkspace: String?,
-    onHaltAgent: () -> Unit
-) {
-    TopAppBar(
-        title = {
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.app_name),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    StatusPill(isConnected = isPaired, latencyMs = null)
-                }
-                if (!activeProjectOrWorkspace.isNullOrBlank() && isPaired) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(top = 2.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Folder,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Text(
-                            text = activeProjectOrWorkspace,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        actions = {
-            if (isPaired) {
-                IconButton(onClick = onHaltAgent) {
-                    Icon(
-                        imageVector = Icons.Filled.Warning,
-                        contentDescription = stringResource(R.string.halt_agent),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        }
-    )
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

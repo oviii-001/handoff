@@ -41,7 +41,7 @@ import com.ovi.handoff.mobile.core.theme.ShapeLarge
 import com.ovi.handoff.mobile.core.theme.ShapeMedium
 
 @Composable
-public fun QuestionModal(
+fun QuestionModal(
     question: String,
     options: List<String>,
     isMultiSelect: Boolean = false,

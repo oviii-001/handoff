@@ -1,5 +1,6 @@
 package com.ovi.handoff.mobile.core.components
 
+import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -8,11 +9,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -44,9 +43,11 @@ import com.ovi.handoff.mobile.core.theme.MonospaceFont
 import com.ovi.handoff.mobile.core.theme.ShapeExtraLarge
 import com.ovi.handoff.mobile.core.theme.ShapeFull
 import com.ovi.handoff.mobile.core.theme.ShapeMedium
+import kotlin.time.Duration.Companion.milliseconds
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-public fun TerminalCard(
+fun TerminalCard(
     command: String,
     toolType: String = "run_command",
     cwd: String? = null,
@@ -61,7 +62,7 @@ public fun TerminalCard(
 
     LaunchedEffect(copied) {
         if (copied) {
-            kotlinx.coroutines.delay(2000)
+            kotlinx.coroutines.delay(2000.milliseconds)
             copied = false
         }
     }

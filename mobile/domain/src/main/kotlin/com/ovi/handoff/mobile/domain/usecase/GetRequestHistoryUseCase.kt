@@ -4,10 +4,10 @@ import com.ovi.handoff.mobile.domain.repository.RelayRepository
 import com.ovi.handoff.shared.model.PermissionRequest
 import kotlinx.coroutines.flow.Flow
 
-public class GetRequestHistoryUseCase(
+class GetRequestHistoryUseCase(
     private val relayRepository: RelayRepository
 ) {
-    public operator fun invoke(): Flow<List<PermissionRequest>> {
+    operator fun invoke(): Flow<List<PermissionRequest>> {
         return relayRepository.observeHistory()
     }
 }

@@ -7,7 +7,7 @@ import com.ovi.handoff.shared.model.PermissionRequest
  * Implementations in platform/app layers handle high-priority Android notifications,
  * lock-screen visibility, and direct notification shade action buttons.
  */
-public interface NotificationNotifier {
-    public fun postPermissionRequestNotification(request: PermissionRequest, pairId: String)
-    public fun dismissNotification(requestId: String)
+interface NotificationNotifier {
+    fun postPermissionRequestNotification(request: PermissionRequest, pairId: String)
+    fun dismissNotification(requestId: String)
 }

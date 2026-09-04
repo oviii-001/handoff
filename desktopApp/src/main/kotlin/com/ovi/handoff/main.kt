@@ -14,7 +14,9 @@ import com.ovi.handoff.shared.model.SessionInfo
 import kotlinx.coroutines.runBlocking
 import java.time.Instant
 import java.util.UUID
-
+import java.util.Base64
+import java.io.File
+import com.ovi.handoff.core.KeyStoreManager
 fun main(args: Array<String>) {
     when {
         args.contains("--cli") || args.contains("--mcp") -> {
@@ -24,6 +26,11 @@ fun main(args: Array<String>) {
         args.contains("--pair") -> {
             val pairId = DesktopConfigManager.getPairId()
             val relay = DesktopConfigManager.getRelayHost()
+            
+            val keyStore = KeyStoreManager(File(System.getProperty("user.home"), ".handoff/keys"))
+            val keyPair = keyStore.getOrGenerateKeyPair()
+            val encodedPubKey = Base64.getUrlEncoder().withoutPadding().encodeToString(keyPair.public.encoded)
+
             println("==================================================")
             println("         Handoff Desktop Pairing Mode             ")
             println("==================================================")
@@ -34,7 +41,7 @@ fun main(args: Array<String>) {
             println(">>>  $pairId  <<<")
             println()
             println("Or copy this pairing URL:")
-            println("handoff://pair?pairId=$pairId&host=$relay")
+            println("handoff://pair?pairId=$pairId&host=$relay&pubKey=$encodedPubKey")
             println("==================================================")
             println("Keep this terminal open, or use this pair ID for requests.")
         }
@@ -49,7 +56,9 @@ fun main(args: Array<String>) {
             println("Question       : Which database architecture should we use for production?")
             println("Connecting to Cloudflare Relay...")
 
-            val client = RelayClient()
+            val keyStore = KeyStoreManager(File(System.getProperty("user.home"), ".handoff/keys"))
+            val keyPair = keyStore.getOrGenerateKeyPair()
+            val client = RelayClient(keyStoreManager = keyStore, privateKey = keyPair.private)
             val request = PermissionRequest(
                 id = UUID.randomUUID().toString(),
                 protocolVersion = "1.0",
@@ -97,7 +106,9 @@ fun main(args: Array<String>) {
             println("Plan Title     : Full-Stack Auth & RBAC Security Overhaul")
             println("Connecting to Cloudflare Relay...")
 
-            val client = RelayClient()
+            val keyStore = KeyStoreManager(File(System.getProperty("user.home"), ".handoff/keys"))
+            val keyPair = keyStore.getOrGenerateKeyPair()
+            val client = RelayClient(keyStoreManager = keyStore, privateKey = keyPair.private)
             val request = PermissionRequest(
                 id = UUID.randomUUID().toString(),
                 protocolVersion = "1.0",
@@ -143,7 +154,9 @@ fun main(args: Array<String>) {
             println("File Target    : src/main/kotlin/auth/AuthRepository.kt")
             println("Connecting to Cloudflare Relay...")
 
-            val client = RelayClient()
+            val keyStore = KeyStoreManager(File(System.getProperty("user.home"), ".handoff/keys"))
+            val keyPair = keyStore.getOrGenerateKeyPair()
+            val client = RelayClient(keyStoreManager = keyStore, privateKey = keyPair.private)
             val diffSnippet = """
 --- a/src/main/kotlin/auth/AuthRepository.kt
 +++ b/src/main/kotlin/auth/AuthRepository.kt
@@ -205,7 +218,9 @@ fun main(args: Array<String>) {
             println("Command        : npx prisma migrate dev --name add_rbac_tables")
             println("Connecting to Cloudflare Relay...")
 
-            val client = RelayClient()
+            val keyStore = KeyStoreManager(File(System.getProperty("user.home"), ".handoff/keys"))
+            val keyPair = keyStore.getOrGenerateKeyPair()
+            val client = RelayClient(keyStoreManager = keyStore, privateKey = keyPair.private)
             val request = PermissionRequest(
                 id = UUID.randomUUID().toString(),
                 protocolVersion = "1.0",
@@ -259,7 +274,9 @@ fun main(args: Array<String>) {
             println("Risk Level     : CRITICAL")
             println("Connecting to Cloudflare Relay...")
 
-            val client = RelayClient()
+            val keyStore = KeyStoreManager(File(System.getProperty("user.home"), ".handoff/keys"))
+            val keyPair = keyStore.getOrGenerateKeyPair()
+            val client = RelayClient(keyStoreManager = keyStore, privateKey = keyPair.private)
             val request = PermissionRequest(
                 id = UUID.randomUUID().toString(),
                 protocolVersion = "1.0",

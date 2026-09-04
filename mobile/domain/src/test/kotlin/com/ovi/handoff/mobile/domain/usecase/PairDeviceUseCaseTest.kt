@@ -26,6 +26,19 @@ class PairDeviceUseCaseTest {
     }
 
     @Test
+    fun `when qr code contains pubKey, it is extracted and decoded`() = runTest {
+        val base64PubKey = "YWJjZGVmZ2hpamtsbW5vcA"
+        val qrPayload = "handoff://pair?pairId=pair_12345&host=localhost&pubKey=$base64PubKey"
+        
+        coEvery { pairingRepository.pairDevice(any(), any()) } returns Result.success(Unit)
+        
+        val result = useCase(qrPayload)
+        
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 1) { pairingRepository.pairDevice("pair_12345", any()) }
+    }
+
+    @Test
     fun `when qr code is empty, returns failure`() = runTest {
         val qrPayload = ""
         

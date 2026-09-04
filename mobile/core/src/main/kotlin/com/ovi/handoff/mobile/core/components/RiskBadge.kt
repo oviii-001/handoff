@@ -27,7 +27,7 @@ import com.ovi.handoff.mobile.core.theme.RiskMediumContainerColor
 import com.ovi.handoff.mobile.core.theme.ShapeFull
 
 @Composable
-public fun RiskBadge(
+fun RiskBadge(
     level: String,
     modifier: Modifier = Modifier
 ) {

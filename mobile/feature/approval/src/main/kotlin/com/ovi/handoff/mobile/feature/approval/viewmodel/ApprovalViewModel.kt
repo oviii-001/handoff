@@ -10,7 +10,7 @@ import com.ovi.handoff.mobile.domain.usecase.ObserveRequestsUseCase
 import com.ovi.handoff.mobile.domain.usecase.PairDeviceUseCase
 import com.ovi.handoff.mobile.domain.usecase.SendDecisionUseCase
 import com.ovi.handoff.mobile.domain.usecase.UnpairDeviceUseCase
-import com.ovi.handoff.shared.model.AgentInfo
+
 import com.ovi.handoff.shared.model.PermissionDecision
 import com.ovi.handoff.shared.model.PermissionRequest
 import com.ovi.handoff.mobile.feature.approval.ui.model.ConnectedAgentUiModel

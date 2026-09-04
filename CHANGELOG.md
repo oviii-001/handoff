@@ -5,6 +5,23 @@ All notable changes to the HandOff project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-04
+
+### Added
+- **Cryptographic Request Signing & Key Exchange (Ed25519)**:
+  - Added cryptographic payload signing in Desktop daemon (`RelayClient`, `KeyStoreManager`).
+  - Added optional `signature` field to shared `PermissionRequest` protocol specification.
+  - Embedded Base64URL-encoded public key parameter (`&pubKey=...`) into desktop pairing mode CLI QR output and URLs.
+  - Implemented public key extraction and decoding in `PairDeviceUseCase`, forwarding public keys to `PairingRepository`.
+  - Added unit test suite in `PairDeviceUseCaseTest` for public key payload parsing and validation.
+
+### Changed
+- **Mobile Presentation Modularization**:
+  - Extracted `HomeScreen` and `HomeTopAppBar` into dedicated, self-contained `HomeScreen.kt` under `:mobile:feature:approval:ui:home`.
+  - Refactored `ApprovalScreen.kt` to focus purely on top-level scaffold, animated tab transitions, and bottom navigation bar.
+  - Standardized component visibility modifiers, removing redundant `public` keywords across domain use cases and UI components.
+  - Streamlined Composable parameters and added `@SuppressLint("LocalContextGetResourceValueCall")` to ensure clean lint passes.
+
 ## [1.1.0] - 2026-09-04
 
 ### Added

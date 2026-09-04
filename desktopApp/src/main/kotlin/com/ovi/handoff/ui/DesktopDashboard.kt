@@ -92,7 +92,9 @@ fun DesktopDashboard() {
             isDispatching = true
             statusMessage = "Dispatching $title to mobile device..."
             try {
-                val client = RelayClient(relayHost)
+                val keyStore = com.ovi.handoff.core.KeyStoreManager(java.io.File(System.getProperty("user.home"), ".handoff/keys"))
+                val keyPair = keyStore.getOrGenerateKeyPair()
+                val client = RelayClient(relayHost = relayHost, keyStoreManager = keyStore, privateKey = keyPair.private)
                 val request = requestBuilder()
                 val decision = client.sendRequestAndWaitForDecision(pairId, request)
                 if (decision != null) {

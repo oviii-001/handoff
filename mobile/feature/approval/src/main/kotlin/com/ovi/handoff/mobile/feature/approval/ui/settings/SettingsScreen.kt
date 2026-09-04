@@ -1,5 +1,6 @@
 package com.ovi.handoff.mobile.feature.approval.ui.settings
 
+import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -81,9 +82,10 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-public fun SettingsScreen(
+fun SettingsScreen(
     pairId: String,
     onNavigateBack: () -> Unit = {},
     onUnpaired: () -> Unit,

@@ -14,7 +14,8 @@ data class PermissionRequest(
     val createdAt: String,
     val expiresAt: String,
     val question: QuestionPayload? = null,
-    val plan: PlanPayload? = null
+    val plan: PlanPayload? = null,
+    val signature: String? = null
 )
 
 @Serializable

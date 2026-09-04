@@ -10,8 +10,13 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.serialization.json.Json
 
+import java.util.Base64
+import java.security.PrivateKey
+
 class RelayClient(
-    private val relayHost: String = "agentapprove-relay.ismamhasanovi.workers.dev"
+    private val relayHost: String = "agentapprove-relay.ismamhasanovi.workers.dev",
+    private val keyStoreManager: KeyStoreManager? = null,
+    private val privateKey: PrivateKey? = null
 ) {
     private val client = HttpClient(CIO) {
         install(WebSockets) {
@@ -27,7 +32,16 @@ class RelayClient(
         
         try {
             client.webSocket(method = HttpMethod.Get, host = relayHost, path = "/ws/desktop/$pairId") {
-                val requestJson = Json.encodeToString(PermissionRequest.serializer(), request)
+                // Sign the request
+                val requestToSign = request.copy(signature = null) // Ensure signature is null before signing
+                val jsonBytes = Json.encodeToString(PermissionRequest.serializer(), requestToSign).toByteArray(Charsets.UTF_8)
+                val signatureStr = if (keyStoreManager != null && privateKey != null) {
+                    val sigBytes = keyStoreManager.sign(jsonBytes, privateKey)
+                    Base64.getUrlEncoder().withoutPadding().encodeToString(sigBytes)
+                } else null
+                
+                val finalRequest = request.copy(signature = signatureStr)
+                val requestJson = Json.encodeToString(PermissionRequest.serializer(), finalRequest)
                 send(Frame.Text(requestJson))
 
                 incoming.consumeEach { frame ->

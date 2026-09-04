@@ -26,7 +26,7 @@ import com.ovi.handoff.mobile.core.theme.RiskLowContainerColor
 import com.ovi.handoff.mobile.core.theme.ShapeFull
 
 @Composable
-public fun StatusPill(
+fun StatusPill(
     isConnected: Boolean,
     latencyMs: Int? = null,
     modifier: Modifier = Modifier

@@ -11,7 +11,7 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
-public const val DEFAULT_RELAY_HOST: String = "agentapprove-relay.ismamhasanovi.workers.dev"
+const val DEFAULT_RELAY_HOST: String = "agentapprove-relay.ismamhasanovi.workers.dev"
 
 val dataModule = module {
     single<PairingRepository> { PairingRepositoryImpl(androidContext()) }

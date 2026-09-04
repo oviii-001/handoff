@@ -39,7 +39,7 @@ import com.ovi.handoff.mobile.core.theme.ShapeLarge
 import com.ovi.handoff.mobile.core.theme.ShapeMedium
 
 @Composable
-public fun PlanApprovalCard(
+fun PlanApprovalCard(
     title: String,
     summary: String,
     userReviewRequired: List<String> = emptyList(),

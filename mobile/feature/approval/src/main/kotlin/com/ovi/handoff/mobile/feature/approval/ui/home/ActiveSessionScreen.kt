@@ -1,4 +1,4 @@
-package com.ovi.handoff.mobile.feature.approval.ui.components
+package com.ovi.handoff.mobile.feature.approval.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -22,20 +22,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Hub
-import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ovi.handoff.mobile.core.components.StatusPill
 import com.ovi.handoff.mobile.core.theme.MonospaceFont
-import com.ovi.handoff.mobile.core.theme.RiskCriticalColor
 import com.ovi.handoff.mobile.core.theme.RiskLowColor
 import com.ovi.handoff.mobile.core.theme.ShapeExtraLarge
 import com.ovi.handoff.mobile.core.theme.ShapeFull
@@ -66,15 +62,15 @@ import com.ovi.handoff.mobile.feature.approval.ui.model.ConnectedAgentUiModel
 import com.ovi.handoff.mobile.feature.approval.ui.model.PermissionRequestUiModel
 
 @Composable
-public fun ActiveSessionDashboard(
+fun ActiveSessionScreen(
+    modifier: Modifier = Modifier,
     pairId: String,
     historyCount: Int,
     connectedAgent: ConnectedAgentUiModel?,
     workspaceName: String?,
     recentActivity: List<PermissionRequestUiModel> = emptyList(),
     onNavigateToAuditLog: () -> Unit = {},
-    onHaltAgent: () -> Unit,
-    modifier: Modifier = Modifier
+    onHaltAgent: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     var isGuideExpanded by remember { mutableStateOf(false) }
@@ -272,7 +268,7 @@ public fun ActiveSessionDashboard(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.HelpOutline,
+                            imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
@@ -528,13 +524,13 @@ private fun MetricChip(
 
 @Composable
 private fun AgentMeshCard(
+    modifier: Modifier = Modifier,
     name: String,
     author: String,
     status: String,
     containerColor: Color,
     onContainerColor: Color,
-    icon: ImageVector? = null,
-    modifier: Modifier = Modifier
+    icon: ImageVector? = null
 ) {
     Card(
         shape = ShapeLarge,

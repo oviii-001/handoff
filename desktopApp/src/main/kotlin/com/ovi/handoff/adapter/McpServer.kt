@@ -181,7 +181,7 @@ object McpServer {
                         sendResponse(id, buildJsonObject {})
                     }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Ignore parsing errors or invalid frames
             }
         }

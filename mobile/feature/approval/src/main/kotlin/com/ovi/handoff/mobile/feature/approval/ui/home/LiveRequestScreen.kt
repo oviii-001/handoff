@@ -1,5 +1,6 @@
-package com.ovi.handoff.mobile.feature.approval.ui.components
+package com.ovi.handoff.mobile.feature.approval.ui.home
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,8 +21,6 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.outlined.Folder
-import com.ovi.handoff.shared.model.cleanName
-import com.ovi.handoff.shared.model.resolveProjectOrWorkspace
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -64,8 +63,9 @@ import com.ovi.handoff.mobile.core.theme.ShapeMedium
 import com.ovi.handoff.mobile.feature.approval.R
 import com.ovi.handoff.mobile.feature.approval.ui.model.PermissionRequestUiModel
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-public fun LiveRequestView(
+fun LiveRequestScreen(
     request: PermissionRequestUiModel,
     isSending: Boolean,
     onApprove: () -> Unit,

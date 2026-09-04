@@ -1,4 +1,4 @@
-package com.ovi.handoff.mobile.feature.approval.ui.components
+package com.ovi.handoff.mobile.feature.approval.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +28,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -52,7 +51,7 @@ import com.ovi.handoff.mobile.core.theme.ShapeLarge
 import com.ovi.handoff.mobile.feature.approval.R
 
 @Composable
-public fun UnpairedHomeView(
+fun UnpairedHomeScreen(
     isPairing: Boolean,
     pairingError: String?,
     onNavigateToPairingQr: () -> Unit,

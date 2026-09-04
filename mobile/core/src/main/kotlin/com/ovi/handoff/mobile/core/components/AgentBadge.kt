@@ -21,13 +21,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ovi.handoff.mobile.core.theme.ShapeFull
 
-public data class AgentBadgeVisuals(
+data class AgentBadgeVisuals(
     val containerColor: Color,
     val contentColor: Color,
     val icon: ImageVector? = null
 )
 
-public fun resolveAgentVisuals(agentId: String, colorScheme: ColorScheme): AgentBadgeVisuals {
+fun resolveAgentVisuals(agentId: String, colorScheme: ColorScheme): AgentBadgeVisuals {
     val normalized = agentId.lowercase()
     return when {
         normalized.contains("antigravity") -> AgentBadgeVisuals(
@@ -53,7 +53,7 @@ public fun resolveAgentVisuals(agentId: String, colorScheme: ColorScheme): Agent
     }
 }
 
-public fun formatAgentDisplayName(agentName: String?, agentId: String?): String {
+fun formatAgentDisplayName(agentName: String?, agentId: String?): String {
     val raw = (agentName?.ifBlank { null } ?: agentId ?: "Agent").trim()
     return when {
         raw.contains("antigravity", ignoreCase = true) -> "Antigravity"
@@ -67,11 +67,11 @@ public fun formatAgentDisplayName(agentName: String?, agentId: String?): String 
 }
 
 @Composable
-public fun AgentBadge(
+fun AgentBadge(
+    modifier: Modifier = Modifier,
     agentId: String,
     agentName: String? = null,
-    version: String? = null,
-    modifier: Modifier = Modifier
+    version: String? = null
 ) {
     val visuals = resolveAgentVisuals(agentId, MaterialTheme.colorScheme)
     val displayName = formatAgentDisplayName(agentName, agentId)
