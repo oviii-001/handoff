@@ -2,12 +2,11 @@ package com.ovi.handoff.core
 
 import kotlinx.serialization.json.*
 import java.io.File
-import java.nio.file.Paths
 
 object McpAutoInstaller {
     
     fun install() {
-        val jarPath = getJarPath()
+        val (execCommand, execArgs) = getExecutableCommand()
         val os = System.getProperty("os.name").lowercase()
         val configFiles = mutableListOf<File>()
         
@@ -23,21 +22,22 @@ object McpAutoInstaller {
 
         // Antigravity (Gemini) configuration
         configFiles.add(File(home, ".gemini/config/mcp_config.json"))
+        // Antigravity IDE root configuration
+        configFiles.add(File(home, ".gemini/antigravity-ide/mcp_config.json"))
 
         var installedAny = false
 
         for (file in configFiles) {
             if (file.exists()) {
                 println("Found MCP config at: ${file.absolutePath}")
-                if (injectHandoffConfig(file, jarPath)) {
+                if (injectHandoffConfig(file, execCommand, execArgs)) {
                     installedAny = true
                 }
             } else {
-                // If the directory exists but not the file, create it (mainly for gemini config)
-                if (file.parentFile.exists()) {
+                if (file.parentFile?.exists() == true) {
                     println("Creating MCP config at: ${file.absolutePath}")
                     file.writeText("{}")
-                    if (injectHandoffConfig(file, jarPath)) {
+                    if (injectHandoffConfig(file, execCommand, execArgs)) {
                         installedAny = true
                     }
                 }
@@ -47,28 +47,35 @@ object McpAutoInstaller {
         if (!installedAny) {
             println("Could not find any standard MCP configuration files.")
             println("To install manually, add the following to your MCP config:")
-            println(generateHandoffConfigSnippet(jarPath))
+            println(generateHandoffConfigSnippet(execCommand, execArgs))
         } else {
             println("Installation complete! Please restart your AI Agent/IDE.")
         }
     }
 
-    private fun getJarPath(): String {
-        return try {
-            val uri = McpAutoInstaller::class.java.protectionDomain.codeSource.location.toURI()
-            val file = File(uri)
-            if (file.extension == "jar") {
-                file.absolutePath
-            } else {
-                // Not running from a jar (e.g., inside IDE during development)
-                File("build/libs/handoff.jar").absolutePath
-            }
-        } catch (e: Exception) {
-            File("handoff.jar").absolutePath
+    private fun getExecutableCommand(): Pair<String, List<String>> {
+        val os = System.getProperty("os.name").lowercase()
+        val isWindows = os.contains("win")
+        val currentDir = File(".").canonicalFile
+        val rootDir = if (currentDir.name == "cli") currentDir.parentFile else currentDir
+        
+        val bin = if (isWindows) {
+            File(rootDir, "cli/build/install/cli/bin/cli.bat")
+        } else {
+            File(rootDir, "cli/build/install/cli/bin/cli")
         }
+        val script = if (isWindows) File(rootDir, "handoff.bat") else File(rootDir, "handoff.sh")
+
+        val targetPath = when {
+            bin.exists() -> bin.absolutePath
+            script.exists() -> script.absolutePath
+            else -> if (isWindows) "handoff.bat" else "./handoff.sh"
+        }
+
+        return Pair(targetPath, listOf("--mcp"))
     }
 
-    private fun injectHandoffConfig(file: File, jarPath: String): Boolean {
+    private fun injectHandoffConfig(file: File, command: String, args: List<String>): Boolean {
         return try {
             val content = file.readText()
             val jsonElement = if (content.isBlank()) JsonObject(emptyMap()) else Json.parseToJsonElement(content).jsonObject
@@ -76,11 +83,9 @@ object McpAutoInstaller {
             val mcpServers = jsonElement["mcpServers"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
             
             val handoffConfig = buildJsonObject {
-                put("command", "java")
+                put("command", command)
                 put("args", buildJsonArray {
-                    add("-jar")
-                    add(jarPath.replace("\\", "/"))
-                    add("--mcp")
+                    args.forEach { add(it) }
                 })
             }
             
@@ -101,13 +106,14 @@ object McpAutoInstaller {
         }
     }
 
-    private fun generateHandoffConfigSnippet(jarPath: String): String {
-        val normalizedPath = jarPath.replace("\\", "/")
+    private fun generateHandoffConfigSnippet(command: String, args: List<String>): String {
+        val formattedArgs = args.joinToString(", ") { "\"$it\"" }
+        val escapedCommand = command.replace("\\", "\\\\")
         return """
             "mcpServers": {
                 "handoff": {
-                    "command": "java",
-                    "args": ["-jar", "$normalizedPath", "--mcp"]
+                    "command": "$escapedCommand",
+                    "args": [$formattedArgs]
                 }
             }
         """.trimIndent()

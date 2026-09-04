@@ -62,24 +62,36 @@ data class PlanPayload(
     val userReviewRequired: List<String> = emptyList()
 )
 
+@Serializable
+data class SessionAnnouncement(
+    val type: String = "session_info",
+    val pairId: String,
+    val agent: AgentInfo,
+    val session: SessionInfo,
+    val timestamp: String
+)
+
 /**
  * Resolves a human-readable project or workspace name for display in notifications and UI headers.
- * Extracts folder basename if the project or workspace was transmitted as a full filesystem path.
+ * Extracts folder basename if the project or workspace was transmitted as a full filesystem path or file URI.
  */
 public fun PermissionRequest.resolveProjectOrWorkspace(): String? {
-    if (!session.project.isNullOrBlank()) {
-        val base = session.project.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
-        return base.ifBlank { session.project }
+    return resolveProjectOrWorkspace(session.project, session.workspace, permission.cwd)
+}
+
+public fun resolveProjectOrWorkspace(project: String?, workspace: String?, cwd: String? = null): String? {
+    fun clean(path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        var s = path.trim()
+        if (s.startsWith("file://", ignoreCase = true)) {
+            s = s.substring(7)
+        }
+        s = s.trimEnd('/', '\\')
+        val base = s.substringAfterLast('/').substringAfterLast('\\')
+        return base.ifBlank { s }
     }
-    if (!session.workspace.isNullOrBlank()) {
-        val base = session.workspace.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
-        return base.ifBlank { session.workspace }
-    }
-    if (!permission.cwd.isNullOrBlank()) {
-        val base = permission.cwd.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
-        if (base.isNotBlank()) return base
-    }
-    return null
+
+    return clean(project) ?: clean(workspace) ?: clean(cwd)
 }
 
 /**
@@ -95,6 +107,11 @@ public fun AgentInfo.cleanName(): String {
         raw.contains("claude", ignoreCase = true) -> "Claude"
         raw.contains("windsurf", ignoreCase = true) -> "Windsurf"
         raw.contains("copilot", ignoreCase = true) -> "Copilot"
+        raw.contains("vscode", ignoreCase = true) -> "VSCode"
+        raw.contains("intellij", ignoreCase = true) -> "IntelliJ"
+        raw.contains("android studio", ignoreCase = true) -> "Android Studio"
+        raw.contains("gemini", ignoreCase = true) -> "Gemini"
         else -> raw.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }
 }
+

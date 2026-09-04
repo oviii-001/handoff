@@ -17,7 +17,7 @@ import com.ovi.handoff.core.KeyStoreManager
 fun main(args: Array<String>) {
     when {
         args.contains("--cli") || args.contains("--mcp") -> {
-            println("Starting Handoff MCP Server on stdio...")
+            System.err.println("[Handoff] Starting MCP Server on stdio...")
             McpServer.run()
         }
         args.contains("--pair") -> {

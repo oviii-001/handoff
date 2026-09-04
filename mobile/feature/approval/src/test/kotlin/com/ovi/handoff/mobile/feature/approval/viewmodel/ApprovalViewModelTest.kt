@@ -1,6 +1,7 @@
 package com.ovi.handoff.mobile.feature.approval.viewmodel
 
 import app.cash.turbine.test
+import com.ovi.handoff.mobile.domain.repository.ConnectedSession
 import com.ovi.handoff.mobile.domain.repository.PairingRepository
 import com.ovi.handoff.mobile.domain.usecase.AbortSessionUseCase
 import com.ovi.handoff.mobile.domain.usecase.ClearRequestHistoryUseCase
@@ -68,6 +69,7 @@ class ApprovalViewModelTest {
         every { getRequestHistoryUseCase() } returns flowOf(emptyList())
         coEvery { clearRequestHistoryUseCase() } returns Result.success(Unit)
         coEvery { pairingRepository.getPairId() } returns testPairId
+        every { pairingRepository.observeConnectedSession() } returns flowOf(null)
     }
 
     @After
@@ -267,5 +269,22 @@ class ApprovalViewModelTest {
 
         assertEquals("Audit log cleared", viewModel.uiState.value.notificationMessage)
         coVerify { clearRequestHistoryUseCase() }
+    }
+
+    @Test
+    fun `observes persisted session and derives connectedAgent and activeProjectOrWorkspace when idle`() = runTest {
+        val testSession = ConnectedSession(
+            ideName = "Antigravity",
+            workspaceName = "handoff"
+        )
+        every { pairingRepository.observeConnectedSession() } returns flowOf(testSession)
+
+        viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(testSession, viewModel.uiState.value.persistedSession)
+        assertEquals("Antigravity", viewModel.uiState.value.connectedAgent?.name)
+        assertEquals("antigravity", viewModel.uiState.value.connectedAgent?.id)
+        assertEquals("handoff", viewModel.uiState.value.activeProjectOrWorkspace)
     }
 }

@@ -2,6 +2,7 @@ package com.ovi.handoff.mobile.feature.approval.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ovi.handoff.mobile.domain.repository.ConnectedSession
 import com.ovi.handoff.mobile.domain.repository.PairingRepository
 import com.ovi.handoff.mobile.domain.usecase.AbortSessionUseCase
 import com.ovi.handoff.mobile.domain.usecase.ClearRequestHistoryUseCase
@@ -45,7 +46,8 @@ public data class ApprovalUiState(
     val isPairing: Boolean = false,
     val pairingError: String? = null,
     val error: String? = null,
-    val notificationMessage: String? = null
+    val notificationMessage: String? = null,
+    val persistedSession: ConnectedSession? = null
 ) {
     val connectedAgent: ConnectedAgentUiModel?
         get() = currentRequest?.let {
@@ -53,6 +55,11 @@ public data class ApprovalUiState(
                 id = it.agentId,
                 name = it.agentName,
                 version = it.agentVersion
+            )
+        } ?: persistedSession?.let {
+            ConnectedAgentUiModel(
+                id = it.ideName.lowercase(),
+                name = it.ideName
             )
         } ?: historyRequests.firstOrNull()?.let {
             ConnectedAgentUiModel(
@@ -70,6 +77,7 @@ public data class ApprovalUiState(
 
     val activeProjectOrWorkspace: String?
         get() = currentRequest?.projectOrWorkspace
+            ?: persistedSession?.workspaceName
             ?: historyRequests.firstOrNull()?.projectOrWorkspace
 
     val recentActivity: List<PermissionRequestUiModel>
@@ -101,6 +109,7 @@ public class ApprovalViewModel(
     init {
         checkAndStartPairing()
         observeHistory()
+        observeConnectedSession()
     }
 
     private fun checkAndStartPairing() {
@@ -133,6 +142,14 @@ public class ApprovalViewModel(
         viewModelScope.launch {
             getRequestHistoryUseCase().collect { history ->
                 _uiState.update { it.copy(historyRequests = history.map { req -> req.toUiModel() }) }
+            }
+        }
+    }
+
+    private fun observeConnectedSession() {
+        viewModelScope.launch {
+            pairingRepository.observeConnectedSession().collect { session ->
+                _uiState.update { it.copy(persistedSession = session) }
             }
         }
     }
@@ -181,6 +198,7 @@ public class ApprovalViewModel(
                     isPaired = false,
                     pairId = null,
                     currentRequest = null,
+                    persistedSession = null,
                     notificationMessage = "Session unpaired"
                 )
             }

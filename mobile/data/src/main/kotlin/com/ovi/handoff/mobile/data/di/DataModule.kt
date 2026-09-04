@@ -26,5 +26,5 @@ val dataModule = module {
     
     single { get<HandoffDatabase>().requestDao() }
     
-    single<RelayRepository> { RelayRepositoryImpl(get(), DEFAULT_RELAY_HOST, getOrNull()) }
+    single<RelayRepository> { RelayRepositoryImpl(get(), DEFAULT_RELAY_HOST, getOrNull(), get()) }
 }

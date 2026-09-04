@@ -1,18 +1,28 @@
 package com.ovi.handoff.adapter
 
 import com.ovi.handoff.core.DesktopConfigManager
+import com.ovi.handoff.core.KeyStoreManager
 import com.ovi.handoff.core.PolicyEngine
+import com.ovi.handoff.core.RelayClient
 import com.ovi.handoff.shared.model.AgentInfo
 import com.ovi.handoff.shared.model.PermissionDecision
 import com.ovi.handoff.shared.model.PermissionInfo
 import com.ovi.handoff.shared.model.PermissionRequest
+import com.ovi.handoff.shared.model.PlanPayload
+import com.ovi.handoff.shared.model.QuestionPayload
 import com.ovi.handoff.shared.model.RiskInfo
+import com.ovi.handoff.shared.model.SessionAnnouncement
 import com.ovi.handoff.shared.model.SessionInfo
+import com.ovi.handoff.shared.model.cleanName
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.websocket.*
 import io.ktor.http.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import java.io.File
@@ -21,11 +31,28 @@ import java.util.Scanner
 import java.util.UUID
 
 object McpServer {
-    private val json = Json { ignoreUnknownKeys = true }
-    private val client = HttpClient(CIO) {
-        install(WebSockets) {
-            pingIntervalMillis = 20_000
-        }
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val serverScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    // Session state detected from MCP client during initialize
+    private var detectedAgent = AgentInfo(
+        id = detectInitialAgentId(),
+        name = detectInitialAgentName(),
+        version = "1.2.0"
+    )
+    private var detectedProjectName = detectCurrentWorkspaceName()
+    private var detectedWorkspacePath = File(".").canonicalPath
+
+    private val keyStore by lazy {
+        KeyStoreManager(File(System.getProperty("user.home"), ".handoff/keys"))
+    }
+    private val relayClient by lazy {
+        val keyPair = keyStore.getOrGenerateKeyPair()
+        RelayClient(
+            relayHost = DesktopConfigManager.getRelayHost(),
+            keyStoreManager = keyStore,
+            privateKey = keyPair.private
+        )
     }
 
     fun run() = runBlocking {
@@ -33,172 +60,439 @@ object McpServer {
         val policyFile = File(System.getProperty("user.home"), ".handoff/policy.yml")
         val policyEngine = PolicyEngine(policyFile)
 
+        System.err.println("[Handoff MCP] Stdio loop listening. Default IDE: ${detectedAgent.name}, Workspace: $detectedProjectName")
+
         while (scanner.hasNextLine()) {
             val line = scanner.nextLine().trim()
             if (line.isEmpty()) continue
-            
+
             try {
                 val element = json.parseToJsonElement(line).jsonObject
                 val id = element["id"]
-                val method = element["method"]?.jsonPrimitive?.content ?: continue
-                
+                val method = element["method"]?.jsonPrimitive?.contentOrNull
+
+                if (method == null) {
+                    continue
+                }
+
                 when (method) {
                     "initialize" -> {
+                        val params = element["params"]?.jsonObject
+                        handleInitialize(params)
+
                         sendResponse(id, buildJsonObject {
                             put("protocolVersion", "2024-11-05")
                             putJsonObject("capabilities") {
                                 putJsonObject("tools") {}
+                                putJsonObject("resources") {}
+                                putJsonObject("prompts") {}
                             }
                             putJsonObject("serverInfo") {
-                                put("name", "handoff-approval")
-                                put("version", "1.1.0")
+                                put("name", "handoff")
+                                put("version", "1.2.0")
                             }
                         })
                     }
+
+                    "notifications/initialized", "initialized" -> {
+                        // MCP client finished initialization handshake; broadcast live session to phone
+                        broadcastSessionAnnouncement()
+                    }
+
                     "tools/list" -> {
                         sendResponse(id, buildJsonObject {
                             putJsonArray("tools") {
-                                add(buildJsonObject {
-                                    put("name", "handoff_approve")
-                                    put("description", "Prompts the user on their mobile phone for permission to execute a shell command or file change.")
-                                    putJsonObject("inputSchema") {
-                                        put("type", "object")
-                                        putJsonObject("properties") {
-                                            putJsonObject("command") {
-                                                put("type", "string")
-                                                put("description", "The shell command to run")
-                                            }
-                                            putJsonObject("reason") {
-                                                put("type", "string")
-                                                put("description", "Why this action is necessary")
-                                            }
-                                        }
-                                        putJsonArray("required") {
-                                            add(JsonPrimitive("command"))
-                                        }
-                                    }
-                                })
+                                add(buildToolApprove())
+                                add(buildToolAskQuestion())
+                                add(buildToolRequestPlan())
+                                add(buildToolStatus())
                             }
                         })
                     }
+
                     "tools/call" -> {
                         val params = element["params"]?.jsonObject
-                        val toolName = params?.get("name")?.jsonPrimitive?.content
-                        val args = params?.get("arguments")?.jsonObject
-                        
-                        if (toolName == "handoff_approve") {
-                            val command = args?.get("command")?.jsonPrimitive?.content ?: ""
-                            val reason = args?.get("reason")?.jsonPrimitive?.content ?: ""
-                            
-                            // Evaluate local policy before querying remote mobile
-                            val policyAction = policyEngine.evaluate(command, "shell")
-                            if (policyAction == "allow") {
-                                sendResponse(id, buildJsonObject {
-                                    putJsonArray("content") {
-                                        add(buildJsonObject {
-                                            put("type", "text")
-                                            put("text", "Permission auto-approved by local policy engine.")
-                                        })
-                                    }
-                                    put("isError", false)
-                                })
-                                continue
-                            } else if (policyAction == "deny") {
-                                sendResponse(id, buildJsonObject {
-                                    putJsonArray("content") {
-                                        add(buildJsonObject {
-                                            put("type", "text")
-                                            put("text", "Permission blocked by local policy engine.")
-                                        })
-                                    }
-                                    put("isError", true)
-                                })
-                                continue
-                            }
+                        val toolName = params?.get("name")?.jsonPrimitive?.contentOrNull
+                        val args = params?.get("arguments")?.jsonObject ?: JsonObject(emptyMap())
 
-                            val pairId = DesktopConfigManager.getPairId()
-                            val relayHost = DesktopConfigManager.getRelayHost()
-
-                            val request = PermissionRequest(
-                                id = UUID.randomUUID().toString(),
-                                protocolVersion = "1.0",
-                                agent = AgentInfo(id = "mcp-client", name = "MCP Client", version = "1.1.0"),
-                                session = SessionInfo(id = pairId, project = "HandOff", workspace = "handoff"),
-                                permission = PermissionInfo(
-                                    type = "shell",
-                                    command = command,
-                                    description = reason.ifBlank { "Tool invocation requiring approval" }
-                                ),
-                                risk = RiskInfo(level = "high", reasons = listOf("External command execution via MCP")),
-                                options = listOf("approve", "deny"),
-                                createdAt = Instant.now().toString(),
-                                expiresAt = Instant.now().plusSeconds(300).toString()
-                            )
-                            
-                            try {
-                                client.webSocket(method = HttpMethod.Get, host = relayHost, path = "/ws/desktop/$pairId") {
-                                    send(Frame.Text(json.encodeToString(PermissionRequest.serializer(), request)))
-                                    
-                                    val decisionReceived = kotlinx.coroutines.withTimeoutOrNull(300_000) {
-                                        for (frame in incoming) {
-                                            if (frame is Frame.Text) {
-                                                val text = frame.readText()
-                                                val decision = json.decodeFromString(PermissionDecision.serializer(), text)
-                                                
-                                                val isApproved = decision.decision in listOf("approve", "approve_once", "proceed_plan", "answer_question")
-                                                val feedbackSuffix = if (!decision.feedback.isNullOrBlank()) " | Feedback: ${decision.feedback}" else ""
-                                                val selected = decision.selectedOptions
-                                                val selectedSuffix = if (!selected.isNullOrEmpty()) " | Selected: ${selected.joinToString(", ")}" else ""
-
-                                                sendResponse(id, buildJsonObject {
-                                                    putJsonArray("content") {
-                                                        add(buildJsonObject {
-                                                            put("type", "text")
-                                                            put("text", "Permission decision: ${decision.decision}$feedbackSuffix$selectedSuffix")
-                                                        })
-                                                    }
-                                                    put("isError", !isApproved)
-                                                })
-                                                return@withTimeoutOrNull true
-                                            }
-                                        }
-                                        false
-                                    }
-                                    
-                                    if (decisionReceived == null) {
-                                        sendResponse(id, buildJsonObject {
-                                            putJsonArray("content") {
-                                                add(buildJsonObject {
-                                                    put("type", "text")
-                                                    put("text", "Request timed out after 5 minutes waiting for approval from mobile device.")
-                                                })
-                                            }
-                                            put("isError", true)
-                                        })
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                sendResponse(id, buildJsonObject {
-                                    putJsonArray("content") {
-                                        add(buildJsonObject {
-                                            put("type", "text")
-                                            put("text", "Error connecting to relay ($relayHost) for pair $pairId: ${e.message}")
-                                        })
-                                    }
-                                    put("isError", true)
-                                })
-                            }
-                        } else {
-                            sendError(id, -32601, "Tool not found: $toolName")
+                        when (toolName) {
+                            "handoff_approve" -> handleToolApprove(id, args, policyEngine)
+                            "handoff_ask_question" -> handleToolAskQuestion(id, args)
+                            "handoff_request_plan_approval" -> handleToolRequestPlan(id, args)
+                            "handoff_status" -> handleToolStatus(id)
+                            else -> sendError(id, -32601, "Tool not found: $toolName")
                         }
                     }
+
+                    "resources/list" -> {
+                        sendResponse(id, buildJsonObject {
+                            putJsonArray("resources") {}
+                        })
+                    }
+
+                    "prompts/list" -> {
+                        sendResponse(id, buildJsonObject {
+                            putJsonArray("prompts") {}
+                        })
+                    }
+
                     "ping" -> {
                         sendResponse(id, buildJsonObject {})
                     }
+
+                    else -> {
+                        if (id != null) {
+                            sendError(id, -32601, "Method not found: $method")
+                        }
+                    }
                 }
-            } catch (_: Exception) {
-                // Ignore parsing errors or invalid frames
+            } catch (e: Exception) {
+                System.err.println("[Handoff MCP] Error handling frame: ${e.message}")
             }
+        }
+    }
+
+    private fun handleInitialize(params: JsonObject?) {
+        if (params == null) return
+
+        // 1. Extract Client Info (IDE name & version)
+        val clientInfo = params["clientInfo"]?.jsonObject
+        val clientName = clientInfo?.get("name")?.jsonPrimitive?.contentOrNull
+        val clientVersion = clientInfo?.get("version")?.jsonPrimitive?.contentOrNull
+
+        if (!clientName.isNullOrBlank()) {
+            val normalizedId = clientName.lowercase().replace(" ", "-")
+            detectedAgent = AgentInfo(
+                id = normalizedId,
+                name = clientName,
+                version = clientVersion ?: "1.0.0"
+            )
+            System.err.println("[Handoff MCP] Client identified: ${detectedAgent.cleanName()} v${detectedAgent.version}")
+        }
+
+        // 2. Extract Workspace / Project
+        val workspaceFolders = params["workspaceFolders"]?.jsonArray
+        val firstFolder = workspaceFolders?.firstOrNull()?.jsonObject
+        val wsName = firstFolder?.get("name")?.jsonPrimitive?.contentOrNull
+        val wsUri = firstFolder?.get("uri")?.jsonPrimitive?.contentOrNull
+            ?: params["rootUri"]?.jsonPrimitive?.contentOrNull
+
+        if (!wsName.isNullOrBlank()) {
+            detectedProjectName = wsName
+        } else if (!wsUri.isNullOrBlank()) {
+            detectedProjectName = extractFolderName(wsUri)
+        }
+
+        if (!wsUri.isNullOrBlank()) {
+            detectedWorkspacePath = wsUri.removePrefix("file:///").removePrefix("file://")
+        }
+
+        System.err.println("[Handoff MCP] Workspace identified: $detectedProjectName ($detectedWorkspacePath)")
+        broadcastSessionAnnouncement()
+    }
+
+    private fun broadcastSessionAnnouncement() {
+        val pairId = DesktopConfigManager.getPairId()
+        val relayHost = DesktopConfigManager.getRelayHost()
+
+        serverScope.launch {
+            try {
+                val announcement = SessionAnnouncement(
+                    type = "session_info",
+                    pairId = pairId,
+                    agent = detectedAgent,
+                    session = SessionInfo(
+                        id = pairId,
+                        project = detectedProjectName,
+                        workspace = detectedWorkspacePath
+                    ),
+                    timestamp = Instant.now().toString()
+                )
+                val payload = json.encodeToString(SessionAnnouncement.serializer(), announcement)
+
+                val client = HttpClient(CIO) { install(WebSockets) }
+                client.webSocket(method = HttpMethod.Get, host = relayHost, path = "/ws/desktop/$pairId") {
+                    send(Frame.Text(payload))
+                    close(CloseReason(CloseReason.Codes.NORMAL, "Session info broadcast"))
+                }
+                client.close()
+                System.err.println("[Handoff MCP] Broadcasted session announcement to phone: ${detectedAgent.cleanName()} • $detectedProjectName")
+            } catch (e: Exception) {
+                System.err.println("[Handoff MCP] Could not send session announcement: ${e.message}")
+            }
+        }
+    }
+
+    private suspend fun handleToolApprove(id: JsonElement?, args: JsonObject, policyEngine: PolicyEngine) {
+        val command = args["command"]?.jsonPrimitive?.contentOrNull ?: ""
+        val reason = args["reason"]?.jsonPrimitive?.contentOrNull ?: "Execution requires authorization"
+        val actionType = args["action_type"]?.jsonPrimitive?.contentOrNull ?: "shell"
+        val riskLevel = args["risk_level"]?.jsonPrimitive?.contentOrNull ?: "high"
+
+        val policyAction = policyEngine.evaluate(command, actionType)
+        if (policyAction == "allow") {
+            sendResponse(id, buildTextContent("Permission auto-approved by local policy engine."))
+            return
+        } else if (policyAction == "deny") {
+            sendResponse(id, buildTextContent("Permission blocked by local policy engine.", isError = true))
+            return
+        }
+
+        val pairId = DesktopConfigManager.getPairId()
+        val request = PermissionRequest(
+            id = UUID.randomUUID().toString(),
+            protocolVersion = "1.0",
+            agent = detectedAgent,
+            session = SessionInfo(
+                id = pairId,
+                project = detectedProjectName,
+                workspace = detectedWorkspacePath
+            ),
+            permission = PermissionInfo(
+                type = actionType,
+                command = command,
+                description = reason,
+                cwd = detectedWorkspacePath
+            ),
+            risk = RiskInfo(
+                level = riskLevel,
+                reasons = listOf("Triggered via MCP by ${detectedAgent.cleanName()}")
+            ),
+            options = listOf("approve", "deny"),
+            createdAt = Instant.now().toString(),
+            expiresAt = Instant.now().plusSeconds(300).toString()
+        )
+
+        val decision = relayClient.sendRequestAndWaitForDecision(pairId, request)
+        deliverDecisionResponse(id, decision)
+    }
+
+    private suspend fun handleToolAskQuestion(id: JsonElement?, args: JsonObject) {
+        val questionText = args["question"]?.jsonPrimitive?.contentOrNull ?: "Clarification needed"
+        val optionsList = args["options"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
+            ?: listOf("Yes", "No")
+        val isMultiSelect = args["is_multi_select"]?.jsonPrimitive?.booleanOrNull ?: false
+
+        val pairId = DesktopConfigManager.getPairId()
+        val request = PermissionRequest(
+            id = UUID.randomUUID().toString(),
+            protocolVersion = "1.0",
+            agent = detectedAgent,
+            session = SessionInfo(
+                id = pairId,
+                project = detectedProjectName,
+                workspace = detectedWorkspacePath
+            ),
+            permission = PermissionInfo(
+                type = "question",
+                description = questionText,
+                cwd = detectedWorkspacePath
+            ),
+            risk = RiskInfo(level = "medium", reasons = listOf("Interactive agent question")),
+            options = listOf("answer_question", "cancel"),
+            createdAt = Instant.now().toString(),
+            expiresAt = Instant.now().plusSeconds(300).toString(),
+            question = QuestionPayload(
+                question = questionText,
+                options = optionsList,
+                isMultiSelect = isMultiSelect
+            )
+        )
+
+        val decision = relayClient.sendRequestAndWaitForDecision(pairId, request)
+        if (decision != null) {
+            val selected = decision.selectedOptions
+            val feedback = decision.feedback
+            val resultText = buildString {
+                append("User answered question.")
+                if (!selected.isNullOrEmpty()) {
+                    append(" Selected: ${selected.joinToString(", ")}")
+                }
+                if (!feedback.isNullOrBlank()) {
+                    append(" Comments: $feedback")
+                }
+            }
+            sendResponse(id, buildTextContent(resultText))
+        } else {
+            sendResponse(id, buildTextContent("Question timed out waiting for user response on mobile device.", isError = true))
+        }
+    }
+
+    private suspend fun handleToolRequestPlan(id: JsonElement?, args: JsonObject) {
+        val title = args["title"]?.jsonPrimitive?.contentOrNull ?: "Implementation Plan"
+        val summary = args["summary"]?.jsonPrimitive?.contentOrNull ?: ""
+        val reviewItems = args["user_review_required"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
+            ?: emptyList()
+
+        val pairId = DesktopConfigManager.getPairId()
+        val request = PermissionRequest(
+            id = UUID.randomUUID().toString(),
+            protocolVersion = "1.0",
+            agent = detectedAgent,
+            session = SessionInfo(
+                id = pairId,
+                project = detectedProjectName,
+                workspace = detectedWorkspacePath
+            ),
+            permission = PermissionInfo(
+                type = "plan",
+                description = "Plan review: $title",
+                cwd = detectedWorkspacePath
+            ),
+            risk = RiskInfo(level = "high", reasons = listOf("Architectural plan approval")),
+            options = listOf("proceed_plan", "deny"),
+            createdAt = Instant.now().toString(),
+            expiresAt = Instant.now().plusSeconds(300).toString(),
+            plan = PlanPayload(
+                title = title,
+                summary = summary,
+                userReviewRequired = reviewItems
+            )
+        )
+
+        val decision = relayClient.sendRequestAndWaitForDecision(pairId, request)
+        deliverDecisionResponse(id, decision)
+    }
+
+    private fun handleToolStatus(id: JsonElement?) {
+        val pairId = DesktopConfigManager.getPairId()
+        val relayHost = DesktopConfigManager.getRelayHost()
+
+        val status = buildJsonObject {
+            put("pairId", pairId)
+            put("relayHost", relayHost)
+            put("connectedIde", detectedAgent.cleanName())
+            put("ideVersion", detectedAgent.version ?: "unknown")
+            put("workspace", detectedProjectName)
+            put("workspacePath", detectedWorkspacePath)
+            put("status", "ready")
+        }
+        sendResponse(id, buildJsonObject {
+            putJsonArray("content") {
+                add(buildJsonObject {
+                    put("type", "text")
+                    put("text", status.toString())
+                })
+            }
+        })
+    }
+
+    private fun deliverDecisionResponse(id: JsonElement?, decision: PermissionDecision?) {
+        if (decision == null) {
+            sendResponse(id, buildTextContent("Request timed out after 5 minutes waiting for approval on mobile device.", isError = true))
+            return
+        }
+
+        val isApproved = decision.decision in listOf("approve", "approve_once", "proceed_plan", "answer_question")
+        val feedbackSuffix = if (!decision.feedback.isNullOrBlank()) " | Feedback: ${decision.feedback}" else ""
+        val options = decision.selectedOptions
+        val selectedSuffix = if (!options.isNullOrEmpty()) " | Selected: ${options.joinToString(", ")}" else ""
+
+        val responseText = "Permission decision: ${decision.decision}$feedbackSuffix$selectedSuffix"
+        sendResponse(id, buildTextContent(responseText, isError = !isApproved))
+    }
+
+    private fun buildTextContent(text: String, isError: Boolean = false): JsonObject {
+        return buildJsonObject {
+            putJsonArray("content") {
+                add(buildJsonObject {
+                    put("type", "text")
+                    put("text", text)
+                })
+            }
+            put("isError", isError)
+        }
+    }
+
+    private fun buildToolApprove(): JsonObject = buildJsonObject {
+        put("name", "handoff_approve")
+        put("description", "Prompts the user on their mobile phone for zero-trust authorization to execute a shell command or file change.")
+        putJsonObject("inputSchema") {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("command") {
+                    put("type", "string")
+                    put("description", "The shell command or operation to execute")
+                }
+                putJsonObject("reason") {
+                    put("type", "string")
+                    put("description", "Why this action is necessary")
+                }
+                putJsonObject("action_type") {
+                    put("type", "string")
+                    put("description", "Optional action category: 'shell', 'file_write', 'file_read', 'network', 'deploy'")
+                }
+                putJsonObject("risk_level") {
+                    put("type", "string")
+                    put("description", "Optional risk level: 'low', 'medium', 'high', 'critical'")
+                }
+            }
+            putJsonArray("required") {
+                add(JsonPrimitive("command"))
+            }
+        }
+    }
+
+    private fun buildToolAskQuestion(): JsonObject = buildJsonObject {
+        put("name", "handoff_ask_question")
+        put("description", "Prompts the user on their mobile phone with an interactive multiple-choice question to clarify requirements.")
+        putJsonObject("inputSchema") {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("question") {
+                    put("type", "string")
+                    put("description", "The question to ask the user")
+                }
+                putJsonObject("options") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put("description", "List of selectable answer options")
+                }
+                putJsonObject("is_multi_select") {
+                    put("type", "boolean")
+                    put("description", "True if multiple options can be chosen")
+                }
+            }
+            putJsonArray("required") {
+                add(JsonPrimitive("question"))
+                add(JsonPrimitive("options"))
+            }
+        }
+    }
+
+    private fun buildToolRequestPlan(): JsonObject = buildJsonObject {
+        put("name", "handoff_request_plan_approval")
+        put("description", "Submits an architectural implementation plan to the mobile phone for review before executing changes.")
+        putJsonObject("inputSchema") {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("title") {
+                    put("type", "string")
+                    put("description", "Title of the implementation plan")
+                }
+                putJsonObject("summary") {
+                    put("type", "string")
+                    put("description", "Summary of the proposed architectural changes")
+                }
+                putJsonObject("user_review_required") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put("description", "List of critical decisions requiring explicit user consent")
+                }
+            }
+            putJsonArray("required") {
+                add(JsonPrimitive("title"))
+                add(JsonPrimitive("summary"))
+            }
+        }
+    }
+
+    private fun buildToolStatus(): JsonObject = buildJsonObject {
+        put("name", "handoff_status")
+        put("description", "Checks current HandOff pairing ID, connected IDE, and relay connection status.")
+        putJsonObject("inputSchema") {
+            put("type", "object")
+            putJsonObject("properties") {}
         }
     }
 
@@ -208,7 +502,9 @@ object McpServer {
             if (id != null) put("id", id)
             put("result", result)
         }
-        println(response.toString())
+        val output = response.toString()
+        System.out.print(output + "\n")
+        System.out.flush()
     }
 
     private fun sendError(id: JsonElement?, code: Int, message: String) {
@@ -220,6 +516,44 @@ object McpServer {
                 put("message", message)
             }
         }
-        println(response.toString())
+        val output = response.toString()
+        System.out.print(output + "\n")
+        System.out.flush()
+    }
+
+    private fun detectInitialAgentId(): String {
+        val env = System.getenv()
+        return when {
+            env.containsKey("ANTIGRAVITY_IDE") || env.containsKey("GEMINI_CLI") -> "antigravity"
+            env.containsKey("CURSOR_VERSION") || env.containsKey("CURSOR_PID") -> "cursor"
+            env.containsKey("CLAUDE_CODE") -> "claude"
+            env.containsKey("VSCODE_PID") -> "vscode"
+            else -> "antigravity"
+        }
+    }
+
+    private fun detectInitialAgentName(): String {
+        return when (detectInitialAgentId()) {
+            "antigravity" -> "Antigravity"
+            "cursor" -> "Cursor"
+            "claude" -> "Claude Code"
+            "vscode" -> "VSCode"
+            else -> "Antigravity"
+        }
+    }
+
+    private fun detectCurrentWorkspaceName(): String {
+        val currentDir = File(".").canonicalFile
+        return currentDir.name.ifBlank { "Workspace" }
+    }
+
+    private fun extractFolderName(pathOrUri: String): String {
+        var s = pathOrUri.trim()
+        if (s.startsWith("file://", ignoreCase = true)) {
+            s = s.substring(7)
+        }
+        s = s.trimEnd('/', '\\')
+        val base = s.substringAfterLast('/').substringAfterLast('\\')
+        return base.ifBlank { "Workspace" }
     }
 }

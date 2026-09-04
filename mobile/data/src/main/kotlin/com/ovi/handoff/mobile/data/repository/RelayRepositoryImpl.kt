@@ -27,11 +27,18 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import com.ovi.handoff.mobile.domain.notification.NotificationNotifier
 
+import com.ovi.handoff.mobile.domain.repository.PairingRepository
+import com.ovi.handoff.shared.model.SessionAnnouncement
+import com.ovi.handoff.shared.model.cleanName
+import com.ovi.handoff.shared.model.resolveProjectOrWorkspace
+
 class RelayRepositoryImpl(
     private val requestDao: RequestDao,
     private val relayHost: String = "agentapprove-relay.ismamhasanovi.workers.dev",
-    private val notificationNotifier: NotificationNotifier? = null
+    private val notificationNotifier: NotificationNotifier? = null,
+    private val pairingRepository: PairingRepository? = null
 ) : RelayRepository {
+    private val json = Json { ignoreUnknownKeys = true }
     private val client = HttpClient(CIO) {
         install(WebSockets) {
             pingIntervalMillis = 20_000
@@ -71,11 +78,27 @@ class RelayRepositoryImpl(
                             if (frame is Frame.Text) {
                                 val text = frame.readText()
                                 try {
-                                    val request = Json.decodeFromString(PermissionRequest.serializer(), text)
-                                    requestDao.insert(request.toEntity())
-                                    notificationNotifier?.postPermissionRequestNotification(request, pairId)
-                                } catch (e: Exception) {
-                                    // Non-PermissionRequest frame (e.g. heartbeat)
+                                    val element = json.parseToJsonElement(text)
+                                    val obj = element as? kotlinx.serialization.json.JsonObject
+                                    val type = obj?.get("type")?.let { 
+                                        (it as? kotlinx.serialization.json.JsonPrimitive)?.content 
+                                    }
+
+                                    if (type == "session_info") {
+                                        val announcement = json.decodeFromString(SessionAnnouncement.serializer(), text)
+                                        val cleanIde = announcement.agent.cleanName()
+                                        val cleanWs = resolveProjectOrWorkspace(announcement.session.project, announcement.session.workspace)
+                                        pairingRepository?.saveConnectedSession(cleanIde, cleanWs)
+                                    } else {
+                                        val request = json.decodeFromString(PermissionRequest.serializer(), text)
+                                        requestDao.insert(request.toEntity())
+                                        val cleanIde = request.agent.cleanName()
+                                        val cleanWs = request.resolveProjectOrWorkspace()
+                                        pairingRepository?.saveConnectedSession(cleanIde, cleanWs)
+                                        notificationNotifier?.postPermissionRequestNotification(request, pairId)
+                                    }
+                                } catch (_: Exception) {
+                                    // Non-JSON or unhandled frame
                                 }
                             }
                         }
