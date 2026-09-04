@@ -86,12 +86,44 @@ public fun resolveProjectOrWorkspace(project: String?, workspace: String?, cwd: 
         if (s.startsWith("file://", ignoreCase = true)) {
             s = s.substring(7)
         }
-        s = s.trimEnd('/', '\\')
-        val base = s.substringAfterLast('/').substringAfterLast('\\')
-        return base.ifBlank { s }
+        s = s.replace(Regex("""(?<!^)\\{2,}"""), """\""")
+        return s.trimEnd('/', '\\')
     }
 
-    return clean(project) ?: clean(workspace) ?: clean(cwd)
+    fun isGenericIdeName(s: String?): Boolean {
+        if (s.isNullOrBlank()) return true
+        val lower = s.lowercase().trim().replace('\\', '/')
+        if (lower == "antigravity ide" || lower == "antigravity" ||
+            lower == "cursor" || lower == "claude" || lower == "vscode" ||
+            lower == "workspace" || lower == "workspace session" || lower == "active workspace") {
+            return true
+        }
+        // Filter out IDE installation directory (e.g. AppData/Local/Programs/Antigravity IDE)
+        if (lower.contains("/appdata/local/programs/") ||
+            lower.contains("/program files/") ||
+            lower.endsWith("/antigravity ide") ||
+            lower.endsWith("/cursor") ||
+            lower.endsWith("/vscode")) {
+            return true
+        }
+        return false
+    }
+
+    val cleanCwd = clean(cwd)
+    val cleanWs = clean(workspace)
+    val cleanProj = clean(project)
+
+    // 1. Prefer actual filesystem paths (contains / or \) that are not generic IDE names
+    val pathCandidate = listOfNotNull(cleanCwd, cleanWs, cleanProj).firstOrNull {
+        (it.contains('/') || it.contains('\\')) && !isGenericIdeName(it)
+    }
+    if (pathCandidate != null) {
+        return pathCandidate
+    }
+
+    // 2. Otherwise pick non-generic project or workspace name
+    return listOfNotNull(cleanProj, cleanWs, cleanCwd).firstOrNull { !isGenericIdeName(it) }
+        ?: cleanProj ?: cleanWs ?: cleanCwd
 }
 
 /**

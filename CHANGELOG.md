@@ -5,6 +5,23 @@ All notable changes to the HandOff project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-09-04
+
+### Added
+- **MCP `roots/list` Dynamic Workspace Discovery**:
+  - Implemented dynamic project workspace root discovery via standard MCP `roots/list` requests and `notifications/roots/list_changed` events in `McpServer`.
+  - Added optional `cwd` parameter to all MCP tool definitions (`handoff_approve`, `handoff_ask_question`, `handoff_request_plan_approval`, `handoff_status`), enabling callers to dynamically provide working directories per request.
+
+### Changed
+- **Universal MCP Configuration**:
+  - Removed static `HANDOFF_WORKSPACE` environment variable bindings from `McpAutoInstaller` and global `mcp_config.json`, allowing the HandOff MCP server to adapt dynamically across different projects.
+  - Configured direct `java -classpath` invocation in `McpAutoInstaller` for cross-platform process spawning reliability.
+
+### Fixed
+- **Mobile UI Workspace Display**:
+  - Enhanced `resolveProjectOrWorkspace` in `PermissionRequest.kt` to prioritize real filesystem paths, normalize Windows backslashes, and filter out IDE program directories (`AppData/Local/Programs/Antigravity IDE`, `Program Files`).
+  - Added single-line truncation with ellipsis on Home screen TopAppBar and Connected IDE card to gracefully handle long path strings on mobile viewports.
+
 ## [1.4.0] - 2026-09-04
 
 ### Added

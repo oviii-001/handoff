@@ -31,24 +31,30 @@ class PermissionRequestTest {
     }
 
     @Test
-    fun resolvesExplicitProjectWhenAvailable() {
+    fun resolvesFilesystemPathWhenAvailable() {
         val req = createRequest(project = "my-awesome-app", workspace = "repo/workspace", cwd = "/home/user/code")
-        assertEquals("my-awesome-app", req.resolveProjectOrWorkspace())
+        assertEquals("/home/user/code", req.resolveProjectOrWorkspace())
     }
 
     @Test
-    fun fallsBackToWorkspaceBasename() {
+    fun fallsBackToWorkspacePath() {
         val reqPosix = createRequest(workspace = "/projects/handoff-mobile/")
-        assertEquals("handoff-mobile", reqPosix.resolveProjectOrWorkspace())
+        assertEquals("/projects/handoff-mobile", reqPosix.resolveProjectOrWorkspace())
 
         val reqWindows = createRequest(workspace = """C:\Users\Developer\Workspaces\HandoffApp\""")
-        assertEquals("HandoffApp", reqWindows.resolveProjectOrWorkspace())
+        assertEquals("""C:\Users\Developer\Workspaces\HandoffApp""", reqWindows.resolveProjectOrWorkspace())
     }
 
     @Test
-    fun fallsBackToCwdBasenameWhenSessionEmpty() {
+    fun fallsBackToCwdPathWhenSessionEmpty() {
         val req = createRequest(cwd = """c:\Users\USERAS\Desktop\HandOff\handoff""")
-        assertEquals("handoff", req.resolveProjectOrWorkspace())
+        assertEquals("""c:\Users\USERAS\Desktop\HandOff\handoff""", req.resolveProjectOrWorkspace())
+    }
+
+    @Test
+    fun filtersOutGenericIdeNames() {
+        val req = createRequest(project = "Antigravity IDE", workspace = """C:\Users\USERAS\Desktop\HandOff\handoff""")
+        assertEquals("""C:\Users\USERAS\Desktop\HandOff\handoff""", req.resolveProjectOrWorkspace())
     }
 
     @Test

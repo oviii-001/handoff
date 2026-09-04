@@ -72,6 +72,10 @@ object McpServer {
                 val method = element["method"]?.jsonPrimitive?.contentOrNull
 
                 if (method == null) {
+                    val respId = id?.jsonPrimitive?.contentOrNull
+                    if (respId == "get-roots") {
+                        handleRootsResponse(element["result"]?.jsonObject)
+                    }
                     continue
                 }
 
@@ -95,8 +99,14 @@ object McpServer {
                     }
 
                     "notifications/initialized", "initialized" -> {
-                        // MCP client finished initialization handshake; broadcast live session to phone
+                        // Request active workspace roots from IDE client dynamically
+                        requestRootsFromClient()
                         broadcastSessionAnnouncement()
+                    }
+
+                    "notifications/roots/list_changed" -> {
+                        // User opened or switched folders in IDE
+                        requestRootsFromClient()
                     }
 
                     "tools/list" -> {
@@ -119,7 +129,7 @@ object McpServer {
                             "handoff_approve" -> handleToolApprove(id, args, policyEngine)
                             "handoff_ask_question" -> handleToolAskQuestion(id, args)
                             "handoff_request_plan_approval" -> handleToolRequestPlan(id, args)
-                            "handoff_status" -> handleToolStatus(id)
+                            "handoff_status" -> handleToolStatus(id, args)
                             else -> sendError(id, -32601, "Tool not found: $toolName")
                         }
                     }
@@ -173,21 +183,24 @@ object McpServer {
         // 2. Extract Workspace / Project
         val workspaceFolders = params["workspaceFolders"]?.jsonArray
         val firstFolder = workspaceFolders?.firstOrNull()?.jsonObject
-        val wsName = firstFolder?.get("name")?.jsonPrimitive?.contentOrNull
         val wsUri = firstFolder?.get("uri")?.jsonPrimitive?.contentOrNull
             ?: params["rootUri"]?.jsonPrimitive?.contentOrNull
+            ?: params["rootPath"]?.jsonPrimitive?.contentOrNull
 
-        if (!wsName.isNullOrBlank()) {
-            detectedProjectName = wsName
-        } else if (!wsUri.isNullOrBlank()) {
-            detectedProjectName = extractFolderName(wsUri)
+        val envWorkspace = System.getenv("HANDOFF_WORKSPACE")
+        val resolvedPath = when {
+            !wsUri.isNullOrBlank() -> {
+                val clean = wsUri.removePrefix("file:///").removePrefix("file://")
+                File(clean).canonicalFile.absolutePath
+            }
+            !envWorkspace.isNullOrBlank() -> File(envWorkspace).canonicalFile.absolutePath
+            else -> File(".").canonicalFile.absolutePath
         }
 
-        if (!wsUri.isNullOrBlank()) {
-            detectedWorkspacePath = wsUri.removePrefix("file:///").removePrefix("file://")
-        }
+        detectedWorkspacePath = resolvedPath
+        detectedProjectName = resolvedPath
 
-        System.err.println("[Handoff MCP] Workspace identified: $detectedProjectName ($detectedWorkspacePath)")
+        System.err.println("[Handoff MCP] Dynamic workspace identified: $detectedProjectName ($detectedWorkspacePath)")
         broadcastSessionAnnouncement()
     }
 
@@ -223,7 +236,46 @@ object McpServer {
         }
     }
 
+    private fun requestRootsFromClient() {
+        try {
+            val req = buildJsonObject {
+                put("jsonrpc", "2.0")
+                put("id", "get-roots")
+                put("method", "roots/list")
+                putJsonObject("params") {}
+            }
+            System.out.print(req.toString() + "\n")
+            System.out.flush()
+        } catch (e: Exception) {
+            System.err.println("[Handoff MCP] Could not request roots from client: ${e.message}")
+        }
+    }
+
+    private fun handleRootsResponse(result: JsonObject?) {
+        try {
+            val roots = result?.get("roots")?.jsonArray
+            val firstUri = roots?.firstOrNull()?.jsonObject?.get("uri")?.jsonPrimitive?.contentOrNull
+            if (!firstUri.isNullOrBlank()) {
+                val clean = firstUri.removePrefix("file:///").removePrefix("file://")
+                val resolved = File(clean).canonicalFile.absolutePath
+                detectedWorkspacePath = resolved
+                detectedProjectName = resolved
+                System.err.println("[Handoff MCP] Dynamic workspace updated from client roots/list: $detectedProjectName")
+                broadcastSessionAnnouncement()
+            }
+        } catch (e: Exception) {
+            System.err.println("[Handoff MCP] Error parsing roots response: ${e.message}")
+        }
+    }
+
     private suspend fun handleToolApprove(id: JsonElement?, args: JsonObject, policyEngine: PolicyEngine) {
+        val cwdArg = args["cwd"]?.jsonPrimitive?.contentOrNull
+        if (!cwdArg.isNullOrBlank()) {
+            val resolvedCwd = File(cwdArg).canonicalFile.absolutePath
+            detectedWorkspacePath = resolvedCwd
+            detectedProjectName = resolvedCwd
+        }
+
         val command = args["command"]?.jsonPrimitive?.contentOrNull ?: ""
         val reason = args["reason"]?.jsonPrimitive?.contentOrNull ?: "Execution requires authorization"
         val actionType = args["action_type"]?.jsonPrimitive?.contentOrNull ?: "shell"
@@ -268,6 +320,13 @@ object McpServer {
     }
 
     private suspend fun handleToolAskQuestion(id: JsonElement?, args: JsonObject) {
+        val cwdArg = args["cwd"]?.jsonPrimitive?.contentOrNull
+        if (!cwdArg.isNullOrBlank()) {
+            val resolvedCwd = File(cwdArg).canonicalFile.absolutePath
+            detectedWorkspacePath = resolvedCwd
+            detectedProjectName = resolvedCwd
+        }
+
         val questionText = args["question"]?.jsonPrimitive?.contentOrNull ?: "Clarification needed"
         val optionsList = args["options"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
             ?: listOf("Yes", "No")
@@ -319,6 +378,13 @@ object McpServer {
     }
 
     private suspend fun handleToolRequestPlan(id: JsonElement?, args: JsonObject) {
+        val cwdArg = args["cwd"]?.jsonPrimitive?.contentOrNull
+        if (!cwdArg.isNullOrBlank()) {
+            val resolvedCwd = File(cwdArg).canonicalFile.absolutePath
+            detectedWorkspacePath = resolvedCwd
+            detectedProjectName = resolvedCwd
+        }
+
         val title = args["title"]?.jsonPrimitive?.contentOrNull ?: "Implementation Plan"
         val summary = args["summary"]?.jsonPrimitive?.contentOrNull ?: ""
         val reviewItems = args["user_review_required"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
@@ -354,7 +420,14 @@ object McpServer {
         deliverDecisionResponse(id, decision)
     }
 
-    private fun handleToolStatus(id: JsonElement?) {
+    private fun handleToolStatus(id: JsonElement?, args: JsonObject = JsonObject(emptyMap())) {
+        val cwdArg = args["cwd"]?.jsonPrimitive?.contentOrNull
+        if (!cwdArg.isNullOrBlank()) {
+            val resolvedCwd = File(cwdArg).canonicalFile.absolutePath
+            detectedWorkspacePath = resolvedCwd
+            detectedProjectName = resolvedCwd
+        }
+
         val pairId = DesktopConfigManager.getPairId()
         val relayHost = DesktopConfigManager.getRelayHost()
 
@@ -426,6 +499,10 @@ object McpServer {
                     put("type", "string")
                     put("description", "Optional risk level: 'low', 'medium', 'high', 'critical'")
                 }
+                putJsonObject("cwd") {
+                    put("type", "string")
+                    put("description", "Optional working directory where the action is being performed")
+                }
             }
             putJsonArray("required") {
                 add(JsonPrimitive("command"))
@@ -451,6 +528,10 @@ object McpServer {
                 putJsonObject("is_multi_select") {
                     put("type", "boolean")
                     put("description", "True if multiple options can be chosen")
+                }
+                putJsonObject("cwd") {
+                    put("type", "string")
+                    put("description", "Optional working directory where the action is being performed")
                 }
             }
             putJsonArray("required") {
@@ -479,6 +560,10 @@ object McpServer {
                     putJsonObject("items") { put("type", "string") }
                     put("description", "List of critical decisions requiring explicit user consent")
                 }
+                putJsonObject("cwd") {
+                    put("type", "string")
+                    put("description", "Optional working directory where the action is being performed")
+                }
             }
             putJsonArray("required") {
                 add(JsonPrimitive("title"))
@@ -492,7 +577,12 @@ object McpServer {
         put("description", "Checks current HandOff pairing ID, connected IDE, and relay connection status.")
         putJsonObject("inputSchema") {
             put("type", "object")
-            putJsonObject("properties") {}
+            putJsonObject("properties") {
+                putJsonObject("cwd") {
+                    put("type", "string")
+                    put("description", "Optional working directory where the action is being performed")
+                }
+            }
         }
     }
 
@@ -545,19 +635,19 @@ object McpServer {
     private fun detectCurrentWorkspaceName(): String {
         val envWorkspace = System.getenv("HANDOFF_WORKSPACE")
         if (!envWorkspace.isNullOrBlank()) {
-            return File(envWorkspace).name
+            return File(envWorkspace).absolutePath
         }
         val currentDir = File(".").canonicalFile
-        return currentDir.name.ifBlank { "Workspace" }
+        return currentDir.absolutePath.ifBlank { "Workspace" }
     }
 
     private fun extractFolderName(pathOrUri: String): String {
-        var s = pathOrUri.trim()
-        if (s.startsWith("file://", ignoreCase = true)) {
-            s = s.substring(7)
+        return try {
+            val cleanPath = pathOrUri.removePrefix("file:///").removePrefix("file://")
+            val file = File(cleanPath)
+            file.absolutePath.ifBlank { pathOrUri }
+        } catch (e: Exception) {
+            pathOrUri
         }
-        s = s.trimEnd('/', '\\')
-        val base = s.substringAfterLast('/').substringAfterLast('\\')
-        return base.ifBlank { "Workspace" }
     }
 }

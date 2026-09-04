@@ -54,25 +54,11 @@ object McpAutoInstaller {
     }
 
     private fun getExecutableCommand(): Pair<String, List<String>> {
-        val os = System.getProperty("os.name").lowercase()
-        val isWindows = os.contains("win")
         val currentDir = File(".").canonicalFile
         val rootDir = if (currentDir.name == "cli") currentDir.parentFile else currentDir
-        
-        val bin = if (isWindows) {
-            File(rootDir, "cli/build/install/cli/bin/cli.bat")
-        } else {
-            File(rootDir, "cli/build/install/cli/bin/cli")
-        }
-        val script = if (isWindows) File(rootDir, "handoff.bat") else File(rootDir, "handoff.sh")
-
-        val targetPath = when {
-            bin.exists() -> bin.absolutePath
-            script.exists() -> script.absolutePath
-            else -> if (isWindows) "handoff.bat" else "./handoff.sh"
-        }
-
-        return Pair(targetPath, listOf("--mcp"))
+        val libDir = File(rootDir, "cli/build/install/cli/lib").absolutePath
+        val cp = "$libDir/*"
+        return Pair("java", listOf("-classpath", cp, "com.ovi.handoff.MainKt", "--mcp"))
     }
 
     private fun injectHandoffConfig(file: File, command: String, args: List<String>): Boolean {
