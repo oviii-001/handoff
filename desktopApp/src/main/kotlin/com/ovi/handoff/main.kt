@@ -1,8 +1,5 @@
 package com.ovi.handoff
 
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.application
 import com.ovi.handoff.adapter.McpServer
 import com.ovi.handoff.core.DesktopConfigManager
 import com.ovi.handoff.core.RelayClient
@@ -37,11 +34,14 @@ fun main(args: Array<String>) {
             println("Pair ID: $pairId")
             println("Relay  : $relay")
             println()
-            println("Enter this code manually on your phone:")
+            
+            val pairUrl = "handoff://pair?pairId=$pairId&host=$relay&pubKey=$encodedPubKey"
+            
+            println("Scan this QR Code with your HandOff mobile app:")
+            com.ovi.handoff.core.TerminalQrGenerator.printQrCode(pairUrl)
+            
+            println("Or enter this code manually on your phone:")
             println(">>>  $pairId  <<<")
-            println()
-            println("Or copy this pairing URL:")
-            println("handoff://pair?pairId=$pairId&host=$relay&pubKey=$encodedPubKey")
             println("==================================================")
             println("Keep this terminal open, or use this pair ID for requests.")
         }
@@ -324,19 +324,38 @@ fun main(args: Array<String>) {
                 }
             }
         }
-        else -> {
-            application {
-                Window(
-                    onCloseRequest = ::exitApplication,
-                    title = "Handoff Desktop Control Center",
-                    state = androidx.compose.ui.window.rememberWindowState(
-                        width = 1060.dp,
-                        height = 720.dp
-                    )
-                ) {
-                    com.ovi.handoff.ui.DesktopDashboard()
-                }
+        args.contains("--install") -> {
+            println("==================================================")
+            println("           Handoff MCP Auto-Installer             ")
+            println("==================================================")
+            com.ovi.handoff.core.McpAutoInstaller.install()
+        }
+        args.contains("--exec") -> {
+            val execIndex = args.indexOf("--exec")
+            if (execIndex + 1 < args.size) {
+                val commandArgs = args.slice(execIndex + 1 until args.size)
+                com.ovi.handoff.core.CommandWrapper.execute(commandArgs)
+            } else {
+                System.err.println("Error: Missing command after --exec")
             }
+        }
+        else -> {
+            println("==================================================")
+            println("               Handoff Desktop CLI                ")
+            println("==================================================")
+            println("Usage: handoff [OPTIONS]")
+            println()
+            println("Options:")
+            println("  --mcp               Run the MCP Server on stdio (for AI Agents)")
+            println("  --pair              Display pairing QR code and pair ID")
+            println("  --install           Auto-install MCP config into IDEs (Claude/Cursor)")
+            println("  --exec <cmd>        Intercept and authorize a terminal command")
+            println("  --test-question     Send a test question to the paired phone")
+            println("  --test-plan         Send a test implementation plan for review")
+            println("  --test-codex        Send a test code patch for approval")
+            println("  --test-cursor       Send a test terminal command for approval")
+            println("  --test-request      Send a CRITICAL rm -rf terminal command")
+            println("==================================================")
         }
     }
 }

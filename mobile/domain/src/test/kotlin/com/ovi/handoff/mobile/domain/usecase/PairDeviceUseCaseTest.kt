@@ -1,6 +1,8 @@
 package com.ovi.handoff.mobile.domain.usecase
 
 import com.ovi.handoff.mobile.domain.repository.PairingRepository
+import com.ovi.handoff.mobile.domain.repository.RelayRepository
+import com.ovi.handoff.mobile.domain.provider.PushTokenProvider
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -11,18 +13,24 @@ import kotlin.test.assertTrue
 class PairDeviceUseCaseTest {
     
     private val pairingRepository = mockk<PairingRepository>()
-    private val useCase = PairDeviceUseCase(pairingRepository)
+    private val relayRepository = mockk<RelayRepository>()
+    private val pushTokenProvider = mockk<PushTokenProvider>()
+    private val useCase = PairDeviceUseCase(pairingRepository, relayRepository, pushTokenProvider)
 
     @Test
     fun `when valid qr code scanned, repository pairs device successfully`() = runTest {
         val qrPayload = "pair_12345"
         
         coEvery { pairingRepository.pairDevice(any(), any()) } returns Result.success(Unit)
+        coEvery { pushTokenProvider.getToken() } returns "mock_fcm_token"
+        coEvery { relayRepository.registerPushToken(any(), any()) } returns Result.success(Unit)
         
         val result = useCase(qrPayload)
         
         assertTrue(result.isSuccess)
         coVerify(exactly = 1) { pairingRepository.pairDevice(qrPayload, any()) }
+        coVerify(exactly = 1) { pushTokenProvider.getToken() }
+        coVerify(exactly = 1) { relayRepository.registerPushToken(qrPayload, "mock_fcm_token") }
     }
 
     @Test
@@ -31,6 +39,8 @@ class PairDeviceUseCaseTest {
         val qrPayload = "handoff://pair?pairId=pair_12345&host=localhost&pubKey=$base64PubKey"
         
         coEvery { pairingRepository.pairDevice(any(), any()) } returns Result.success(Unit)
+        coEvery { pushTokenProvider.getToken() } returns "mock_fcm_token"
+        coEvery { relayRepository.registerPushToken(any(), any()) } returns Result.success(Unit)
         
         val result = useCase(qrPayload)
         
