@@ -24,7 +24,8 @@ HandOff is designed using **Clean Architecture + MVVM** and an **Offline-First R
 ```
 +-------------------------------------------------------+
 |                 Desktop CLI / MCP Daemon              |
-|  - MCP Stdio Server & Interactive CLI                 |
+|  - MCP Stdio Server & Interactive Terminal CLI        |
+|  - Terminal ASCII QR Code Pairing                     |
 |  - End-to-End Cryptographic Signing (Ed25519)         |
 +---------------------------+---------------------------+
                             | WebSocket
@@ -32,16 +33,17 @@ HandOff is designed using **Clean Architecture + MVVM** and an **Offline-First R
 +-------------------------------------------------------+
 |         Cloudflare Durable Object Relay               |
 |  - Edge-deployed WebSocket broker (free-tier SQLite)  |
+|  - Webhook endpoints for FCM push notifications       |
 |  - Instant pairing & state synchronization            |
 +---------------------------+---------------------------+
-                            | WebSocket
+                            | WebSocket / FCM Push
                             v
 +-------------------------------------------------------+
-|             Mobile Phone (Android / KMP)              |
+|             Mobile Phone (Android Native)             |
 |  - Data: Room Database (Single Source of Truth)       |
 |  - Domain: Pure Kotlin UseCases & Repositories        |
 |  - UI: Jetpack Compose + Material 3 Expressive        |
-|  - Physical Hardware: Verified on Google Pixel 9      |
+|  - Background: WorkManager & Firebase Cloud Messaging |
 +-------------------------------------------------------+
 ```
 
@@ -51,7 +53,7 @@ HandOff is designed using **Clean Architecture + MVVM** and an **Offline-First R
 - `:mobile:data`: Room DB (`handoff_db`), continuous background WebSocket sync supervisor, and persistent preferences.
 - `:mobile:feature:pairing`: CameraX QR barcode scanner + manual code input fallback.
 - `:mobile:feature:approval`: Material 3 Expressive approval card with dynamic colors, motion scheme tokens, and interactive action buttons.
-- `:desktopApp`: Kotlin JVM daemon with MCP server, pairing generator (`--pair`), and verification tester (`--test-request`).
+- `:desktopApp`: Kotlin JVM headless daemon with MCP server, Terminal QR generator (`--pair`), MCP auto-installer (`--install`), and manual command interceptor (`--exec`).
 - `apps/relay`: Cloudflare Worker using Durable Objects (`RelayRoom`) routing real-time traffic between desktop and mobile endpoints.
 
 ---
@@ -78,13 +80,19 @@ npx wrangler deploy
 ```
 
 ### 2. Run Desktop CLI
-Generate a new pairing code or test a request:
+Generate a new pairing code or test a request using the included wrapper scripts:
 ```bash
-# Generate a new pairing code
-./gradlew :desktopApp:run --args="--pair"
+# Generate a new pairing code and terminal ASCII QR
+./handoff.sh --pair
+
+# Automatically install HandOff into Claude Desktop, Cursor, or Antigravity
+./handoff.sh --install
+
+# Execute a command securely through HandOff's approval flow
+./handoff.sh --exec "npm run build"
 
 # Test dispatching a live critical permission request
-./gradlew :desktopApp:run --args="--test-request --pair-id <YOUR_PAIR_ID>"
+./handoff.sh --test-request --pair-id <YOUR_PAIR_ID>
 ```
 
 ### 3. Install & Run Android App
