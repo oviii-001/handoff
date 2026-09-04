@@ -1,127 +1,73 @@
-# HandOff 📱⚡💻
+<div align="center">
+  <h1>HandOff</h1>
+  <p><strong>Zero-Trust Remote Authorization for AI Coding Agents</strong></p>
 
-> **Remote AI Agent Permission Approval** — Approve or reject sensitive coding agent actions (file writes, bash commands, deployment scripts) from your phone anywhere in the world.
+  [![Kotlin Multiplatform](https://img.shields.io/badge/Kotlin_Multiplatform-2.2.x-blue.svg?logo=kotlin)](https://kotlinlang.org/)
+  [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-M3_Expressive-green.svg?logo=android)](https://developer.android.com/jetpack/compose)
+  [![Cloudflare Workers](https://img.shields.io/badge/Relay-Cloudflare_Durable_Objects-orange.svg?logo=cloudflare)](https://workers.cloudflare.com/)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
+</div>
 
-[![Kotlin Multiplatform](https://img.shields.io/badge/Kotlin_Multiplatform-2.2.x-blue.svg?logo=kotlin)](https://kotlinlang.org/)
-[![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-M3_Expressive-green.svg?logo=android)](https://developer.android.com/jetpack/compose)
-[![Cloudflare Workers](https://img.shields.io/badge/Relay-Cloudflare_Durable_Objects-orange.svg?logo=cloudflare)](https://workers.cloudflare.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
+<br />
 
----
+## Overview
 
-## 🚀 Overview
+Modern AI coding agents (such as Claude Code, Cursor, and Antigravity) are powerful, but they often require permission to execute potentially destructive terminal commands or modify security-sensitive files. 
 
-Modern AI coding agents (Claude Code, Antigravity, Cursor, Codex) often ask for permission to run potentially destructive terminal commands (`rm -rf`, `npm install`, git push to main) or modify security-sensitive files. 
+**HandOff** bridges the gap between agent autonomy and human oversight. It pairs your desktop environment directly with your mobile device via an encrypted relay. Whenever an agent requests tool access, a cryptographic approval card is dispatched to your phone, detailing the command, target directory, and risk classification. 
 
-**HandOff** pairs your desktop environment directly with your mobile phone via an encrypted Cloudflare Relay. Whenever an agent requests tool access, a cryptographic approval card pops up on your phone with the command, target directory, and risk classification. You can approve or reject in real time with a single tap.
+Approve or reject executions in real-time, from anywhere in the world, with a single tap.
 
----
+## Features
 
-## 🏛 Architecture & Engineering Standards
+- **Real-Time Interception**: Seamlessly pauses agent executions pending your explicit mobile authorization.
+- **Agent Agnostic**: Out-of-the-box MCP (Model Context Protocol) support for Claude Desktop, Cursor, and Antigravity IDE.
+- **Zero-Trust Security**: End-to-end cryptographic signing using hardware-backed Ed25519 keys.
+- **Self-Hosted Infrastructure**: Edge-deployed WebSocket broker utilizing Cloudflare Durable Objects.
+- **Offline-First Mobile App**: Native Android client built with Jetpack Compose Material 3 Expressive, backed by Room and Firebase Cloud Messaging for instant background wake-ups.
 
-HandOff is designed using **Clean Architecture + MVVM** and an **Offline-First Reactive Model**:
+## Architecture
 
-```
-+-------------------------------------------------------+
-|                 Desktop CLI / MCP Daemon              |
-|  - MCP Stdio Server & Interactive Terminal CLI        |
-|  - Terminal ASCII QR Code Pairing                     |
-|  - End-to-End Cryptographic Signing (Ed25519)         |
-+---------------------------+---------------------------+
-                            | WebSocket
-                            v
-+-------------------------------------------------------+
-|         Cloudflare Durable Object Relay               |
-|  - Edge-deployed WebSocket broker (free-tier SQLite)  |
-|  - Webhook endpoints for FCM push notifications       |
-|  - Instant pairing & state synchronization            |
-+---------------------------+---------------------------+
-                            | WebSocket / FCM Push
-                            v
-+-------------------------------------------------------+
-|             Mobile Phone (Android Native)             |
-|  - Data: Room Database (Single Source of Truth)       |
-|  - Domain: Pure Kotlin UseCases & Repositories        |
-|  - UI: Jetpack Compose + Material 3 Expressive        |
-|  - Background: WorkManager & Firebase Cloud Messaging |
-+-------------------------------------------------------+
-```
+HandOff is designed around a strict Clean Architecture pattern and operates across three primary nodes:
 
-### Module Topology
-- `:shared`: Domain models (`PermissionRequest`, `PermissionDecision`, `AgentInfo`) and protocol serialization (`kotlinx.serialization`).
-- `:mobile:domain`: Pure Kotlin business logic (`ObserveRequestsUseCase`, `SendDecisionUseCase`, `PairDeviceUseCase`).
-- `:mobile:data`: Room DB (`handoff_db`), continuous background WebSocket sync supervisor, and persistent preferences.
-- `:mobile:feature:pairing`: CameraX QR barcode scanner + manual code input fallback.
-- `:mobile:feature:approval`: Material 3 Expressive approval card with dynamic colors, motion scheme tokens, and interactive action buttons.
-- `:desktopApp`: Kotlin JVM headless daemon with MCP server, Terminal QR generator (`--pair`), MCP auto-installer (`--install`), and manual command interceptor (`--exec`).
-- `apps/relay`: Cloudflare Worker using Durable Objects (`RelayRoom`) routing real-time traffic between desktop and mobile endpoints.
+1. **Desktop Daemon (`/desktopApp`)**: A headless CLI that intercepts agent requests via MCP, signs them cryptographically, and dispatches them over WebSockets.
+2. **Cloudflare Relay (`/apps/relay`)**: A low-latency edge broker utilizing Durable Objects for persistent bidirectional state synchronization and webhook forwarding.
+3. **Android Client (`/mobile`)**: A native Kotlin application that serves as the hardware authenticator, communicating with the relay and persisting audit logs locally.
 
----
+## Getting Started
 
-## 🛠 Getting Started
+Please refer to our comprehensive [**Setup & Installation Guide**](SETUP_GUIDE.md) for detailed, step-by-step instructions on deploying the relay, configuring your mobile device, and injecting the MCP server into your IDE.
 
-> 📖 **Looking for full step-by-step instructions?** See the comprehensive [**Setup & Installation Guide**](SETUP_GUIDE.md) covering Android installation, Cloudflare relay hosting, MCP setup for Claude / Cursor / Antigravity, and end-to-end testing.
+### Quick Start (Desktop Daemon)
 
-### Prerequisites
-- JDK 17 or 21
-- Android Studio Ladybug / Meerkat (Android SDK 35 / 36)
-- Android device or emulator (tested on Android 17 / 16 KB page-size hardware, Google Pixel 9)
-- Node.js 18+ & Wrangler (for Cloudflare Relay deployment)
-
-### 1. Cloudflare Relay
-The Cloudflare relay is deployed to:
-```
-wss://agentapprove-relay.ismamhasanovi.workers.dev
-```
-To deploy your own relay:
-```bash
-cd apps/relay
-npx wrangler deploy
-```
-
-### 2. Run Desktop CLI
-Generate a new pairing code or test a request using the included wrapper scripts:
 ```bash
 # Generate a new pairing code and terminal ASCII QR
 ./handoff.sh --pair
 
-# Automatically install HandOff into Claude Desktop, Cursor, or Antigravity
+# Inject HandOff into your supported IDEs
 ./handoff.sh --install
 
-# Execute a command securely through HandOff's approval flow
+# Execute a command securely through the approval flow
 ./handoff.sh --exec "npm run build"
-
-# Test dispatching a live critical permission request
-./handoff.sh --test-request --pair-id <YOUR_PAIR_ID>
 ```
 
-### 3. Install & Run Android App
-Connect your Android phone via USB and run:
+## Documentation
+
+- [Setup Guide](SETUP_GUIDE.md)
+- [Changelog](CHANGELOG.md)
+- [Security Policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Contributing](CONTRIBUTING.md)
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) to learn how to set up your development environment, run tests, and submit pull requests. 
+
+Before opening a pull request, ensure all tests pass:
 ```bash
-./gradlew :androidApp:installDebug
-```
-Open **HandOff** on your phone:
-1. Scan the QR code or enter your Pair ID manually (e.g. `test-pixel-99`).
-2. Tap **Connect & Pair**.
-3. When the desktop dispatches a permission request, your phone immediately renders the approval card.
-4. Tap **Approve** or **Reject**; desktop receives the decision instantly.
-
----
-
-## 🧪 Testing & Verification
-
-The project follows the Agile Testing Quadrants (Q1–Q4) with 100% passing tests:
-
-```bash
-# Run all unit and integration tests across all modules
 ./gradlew test
 ```
 
-### Hardware Verification
-- **Device Tested**: Google Pixel 9 (`Android 15`, Build `AP4A.241205.013`)
-- **End-to-End Latency**: < 150ms roundtrip from CLI to Phone and back to CLI.
+## License
 
----
-
-## 📄 License
-MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
