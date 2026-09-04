@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Handoff</string>
+    <string name="app_name">HandOff</string>
     <string name="tab_live">Live</string>
     <string name="tab_history">Audit Log</string>
     <string name="tab_live_queue">Live Queue</string>

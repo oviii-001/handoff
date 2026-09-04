@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">AgentApprove</string>
+    <string name="app_name">HandOff</string>
     <string name="pairing_title">Pair New Device</string>
     <string name="pairing_in_progress">Pairing with device...</string>
     <string name="pairing_camera_permission">Camera permission is required to scan QR codes.</string>
