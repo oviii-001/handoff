@@ -10,7 +10,10 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import com.ovi.handoff.mobile.domain.repository.RelayRepository
 import com.ovi.handoff.mobile.data.local.RequestDao
 import com.ovi.handoff.mobile.data.local.toDomain
@@ -36,6 +39,9 @@ class RelayRepositoryImpl(
     }
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var syncJob: Job? = null
+    
+    // Multiplexes all outbound decisions through the single long-lived WebSocket
+    private val outboundMessages = MutableSharedFlow<String>(extraBufferCapacity = 100)
 
     override fun observeRequests(pairId: String): Flow<PermissionRequest?> {
         startSyncJob(pairId)
@@ -47,9 +53,20 @@ class RelayRepositoryImpl(
     private fun startSyncJob(pairId: String) {
         if (syncJob?.isActive == true) return
         syncJob = scope.launch {
+            var attempt = 0
             while (isActive) {
                 try {
                     client.webSocket(method = HttpMethod.Get, host = relayHost, path = "/ws/mobile/$pairId") {
+                        // Connection successful, reset backoff
+                        attempt = 0
+                        
+                        // Launch concurrent sender job within the websocket scope
+                        val sendJob = launch {
+                            outboundMessages.collect { message ->
+                                send(Frame.Text(message))
+                            }
+                        }
+
                         incoming.consumeEach { frame ->
                             if (frame is Frame.Text) {
                                 val text = frame.readText()
@@ -62,9 +79,21 @@ class RelayRepositoryImpl(
                                 }
                             }
                         }
+                        
+                        // If incoming channel closes, cancel the sender job so we can reconnect
+                        sendJob.cancel()
                     }
                 } catch (e: Exception) {
-                    delay(3000) // Reconnect backoff
+                    // Full Jitter Exponential Backoff (max 60s)
+                    val baseDelay = 1000L
+                    val maxDelay = 60000L
+                    val shift = kotlin.math.min(attempt, 30) // Prevent overflow
+                    val exponential = kotlin.math.min(baseDelay * (1L shl shift), maxDelay)
+                    val jitter = kotlin.random.Random.nextLong(0, baseDelay + 1)
+                    val backoff = kotlin.math.min(exponential + jitter, maxDelay)
+                    
+                    delay(backoff)
+                    attempt++
                 }
             }
         }
@@ -83,11 +112,10 @@ class RelayRepositoryImpl(
 
     override suspend fun sendDecision(pairId: String, decision: PermissionDecision): Result<Unit> {
         return try {
-            client.webSocket(method = HttpMethod.Get, host = relayHost, path = "/ws/mobile/$pairId") {
-                val json = Json.encodeToString(PermissionDecision.serializer(), decision)
-                send(Frame.Text(json))
-                close(CloseReason(CloseReason.Codes.NORMAL, "Decision sent"))
-            }
+            val json = Json.encodeToString(PermissionDecision.serializer(), decision)
+            startSyncJob(pairId)
+            outboundMessages.emit(json)
+            
             withContext(Dispatchers.IO) {
                 requestDao.markAsResolved(decision.requestId)
             }
@@ -98,13 +126,20 @@ class RelayRepositoryImpl(
         }
     }
 
+    override suspend fun registerPushToken(pairId: String, token: String): Result<Unit> = runCatching {
+        startSyncJob(pairId)
+        val payload = buildJsonObject {
+            put("type", "fcm_register")
+            put("fcmToken", token)
+        }
+        outboundMessages.emit(payload.toString())
+    }
+
     override suspend fun abortSession(pairId: String): Result<Unit> {
         return try {
-            client.webSocket(method = HttpMethod.Get, host = relayHost, path = "/ws/mobile/$pairId") {
-                val abortJson = """{"type":"abort","action":"emergency_stop"}"""
-                send(Frame.Text(abortJson))
-                close(CloseReason(CloseReason.Codes.NORMAL, "Session aborted"))
-            }
+            val abortJson = """{"type":"abort","action":"emergency_stop"}"""
+            startSyncJob(pairId)
+            outboundMessages.emit(abortJson)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

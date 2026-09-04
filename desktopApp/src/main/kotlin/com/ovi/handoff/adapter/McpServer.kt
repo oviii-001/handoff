@@ -139,27 +139,42 @@ object McpServer {
                                 client.webSocket(method = HttpMethod.Get, host = relayHost, path = "/ws/desktop/$pairId") {
                                     send(Frame.Text(json.encodeToString(PermissionRequest.serializer(), request)))
                                     
-                                    for (frame in incoming) {
-                                        if (frame is Frame.Text) {
-                                            val text = frame.readText()
-                                            val decision = json.decodeFromString(PermissionDecision.serializer(), text)
-                                            
-                                            val isApproved = decision.decision in listOf("approve", "approve_once", "proceed_plan", "answer_question")
-                                            val feedbackSuffix = if (!decision.feedback.isNullOrBlank()) " | Feedback: ${decision.feedback}" else ""
-                                            val selected = decision.selectedOptions
-                                            val selectedSuffix = if (!selected.isNullOrEmpty()) " | Selected: ${selected.joinToString(", ")}" else ""
+                                    val decisionReceived = kotlinx.coroutines.withTimeoutOrNull(300_000) {
+                                        for (frame in incoming) {
+                                            if (frame is Frame.Text) {
+                                                val text = frame.readText()
+                                                val decision = json.decodeFromString(PermissionDecision.serializer(), text)
+                                                
+                                                val isApproved = decision.decision in listOf("approve", "approve_once", "proceed_plan", "answer_question")
+                                                val feedbackSuffix = if (!decision.feedback.isNullOrBlank()) " | Feedback: ${decision.feedback}" else ""
+                                                val selected = decision.selectedOptions
+                                                val selectedSuffix = if (!selected.isNullOrEmpty()) " | Selected: ${selected.joinToString(", ")}" else ""
 
-                                            sendResponse(id, buildJsonObject {
-                                                putJsonArray("content") {
-                                                    add(buildJsonObject {
-                                                        put("type", "text")
-                                                        put("text", "Permission decision: ${decision.decision}$feedbackSuffix$selectedSuffix")
-                                                    })
-                                                }
-                                                put("isError", !isApproved)
-                                            })
-                                            break
+                                                sendResponse(id, buildJsonObject {
+                                                    putJsonArray("content") {
+                                                        add(buildJsonObject {
+                                                            put("type", "text")
+                                                            put("text", "Permission decision: ${decision.decision}$feedbackSuffix$selectedSuffix")
+                                                        })
+                                                    }
+                                                    put("isError", !isApproved)
+                                                })
+                                                return@withTimeoutOrNull true
+                                            }
                                         }
+                                        false
+                                    }
+                                    
+                                    if (decisionReceived == null) {
+                                        sendResponse(id, buildJsonObject {
+                                            putJsonArray("content") {
+                                                add(buildJsonObject {
+                                                    put("type", "text")
+                                                    put("text", "Request timed out after 5 minutes waiting for approval from mobile device.")
+                                                })
+                                            }
+                                            put("isError", true)
+                                        })
                                     }
                                 }
                             } catch (e: Exception) {

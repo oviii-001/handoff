@@ -16,13 +16,31 @@ import com.google.firebase.messaging.RemoteMessage
 import com.ovi.handoff.MainActivity
 import com.ovi.handoff.androidApp.worker.SyncRequestsWorker
 import timber.log.Timber
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
+import com.ovi.handoff.mobile.domain.repository.PairingRepository
+import com.ovi.handoff.mobile.domain.repository.RelayRepository
 
 class AgentApproveMessagingService : FirebaseMessagingService() {
 
+    private val pairingRepository: PairingRepository by inject()
+    private val relayRepository: RelayRepository by inject()
+    
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // TODO: Send this token to the Cloudflare Relay to associate with the current pairing
         Timber.d("FCM Token updated: $token")
+        
+        serviceScope.launch {
+            val pairId = pairingRepository.getPairId()
+            if (pairId != null) {
+                relayRepository.registerPushToken(pairId, token)
+            }
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {

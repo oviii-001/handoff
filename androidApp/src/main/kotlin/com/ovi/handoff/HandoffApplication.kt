@@ -13,10 +13,13 @@ import timber.log.Timber
 
 import com.ovi.handoff.mobile.domain.notification.NotificationNotifier
 import com.ovi.handoff.notification.HandoffNotificationManager
+import com.ovi.handoff.mobile.domain.provider.PushTokenProvider
+import com.ovi.handoff.androidApp.provider.FirebasePushTokenProvider
 import org.koin.dsl.module
 
 val appModule = module {
     single<NotificationNotifier> { HandoffNotificationManager(androidContext()) }
+    single<PushTokenProvider> { FirebasePushTokenProvider() }
 }
 
 class HandoffApplication : Application() {

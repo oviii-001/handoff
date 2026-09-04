@@ -1,8 +1,14 @@
 package com.ovi.handoff.mobile.domain.usecase
 
 import com.ovi.handoff.mobile.domain.repository.PairingRepository
+import com.ovi.handoff.mobile.domain.repository.RelayRepository
+import com.ovi.handoff.mobile.domain.provider.PushTokenProvider
 
-class PairDeviceUseCase(private val pairingRepository: PairingRepository) {
+class PairDeviceUseCase(
+    private val pairingRepository: PairingRepository,
+    private val relayRepository: RelayRepository,
+    private val pushTokenProvider: PushTokenProvider
+) {
     suspend operator fun invoke(qrPayload: String): Result<Unit> {
         val trimmed = qrPayload.trim()
         if (trimmed.isBlank()) {
@@ -40,6 +46,13 @@ class PairDeviceUseCase(private val pairingRepository: PairingRepository) {
             ByteArray(0)
         }
 
-        return pairingRepository.pairDevice(pairId, pubKeyBytes)
+        val result = pairingRepository.pairDevice(pairId, pubKeyBytes)
+        if (result.isSuccess) {
+            val token = pushTokenProvider.getToken()
+            if (token != null) {
+                relayRepository.registerPushToken(pairId, token)
+            }
+        }
+        return result
     }
 }

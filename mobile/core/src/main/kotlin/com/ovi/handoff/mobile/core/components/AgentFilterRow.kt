@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,23 +56,25 @@ public fun AgentFilterRow(
 
     val colorScheme = MaterialTheme.colorScheme
 
-    val filterItems = listOf(
-        AgentFilterItem(
-            id = null,
-            label = "All",
-            icon = Icons.Outlined.Hub,
-            selectedContainerColor = colorScheme.primaryContainer,
-            selectedContentColor = colorScheme.onPrimaryContainer
-        )
-    ) + availableAgents.map { option ->
-        val visuals = resolveAgentVisuals(option.id ?: "", colorScheme)
-        AgentFilterItem(
-            id = option.id,
-            label = option.displayName,
-            icon = visuals.icon, // null for antigravity, codex, cursor
-            selectedContainerColor = visuals.containerColor,
-            selectedContentColor = visuals.contentColor
-        )
+    val filterItems = remember(availableAgents, colorScheme) {
+        listOf(
+            AgentFilterItem(
+                id = null,
+                label = "All",
+                icon = Icons.Outlined.Hub,
+                selectedContainerColor = colorScheme.primaryContainer,
+                selectedContentColor = colorScheme.onPrimaryContainer
+            )
+        ) + availableAgents.map { option ->
+            val visuals = resolveAgentVisuals(option.id ?: "", colorScheme)
+            AgentFilterItem(
+                id = option.id,
+                label = option.displayName,
+                icon = visuals.icon, // null for antigravity, codex, cursor
+                selectedContainerColor = visuals.containerColor,
+                selectedContentColor = visuals.contentColor
+            )
+        }
     }
 
     Row(
