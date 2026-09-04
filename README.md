@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="logo.svg" alt="HandOff Logo" width="128" height="128" />
   <h1>HandOff</h1>
   <p><strong>Zero-Trust Remote Authorization for AI Coding Agents</strong></p>
 
