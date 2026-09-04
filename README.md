@@ -70,4 +70,4 @@ Before opening a pull request, ensure all tests pass:
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License - see the [LICENSE](LICENSE) file for details.
