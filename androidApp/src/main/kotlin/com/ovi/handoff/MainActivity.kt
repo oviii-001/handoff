@@ -47,85 +47,90 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             HandoffTheme {
-                val coroutineScope = rememberCoroutineScope()
-                var initialPairId by remember { mutableStateOf<String?>(null) }
-                var isCheckingPairing by remember { mutableStateOf(true) }
+                androidx.compose.material3.Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    val coroutineScope = rememberCoroutineScope()
+                    var initialPairId by remember { mutableStateOf<String?>(null) }
+                    var isCheckingPairing by remember { mutableStateOf(true) }
 
-                val notificationPermissionLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.RequestPermission()
-                ) { /* Permission handled */ }
+                    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestPermission()
+                    ) { /* Permission handled */ }
 
-                LaunchedEffect(Unit) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                    initialPairId = pairingRepository.getPairId()
-                    isCheckingPairing = false
-                }
-
-                if (isCheckingPairing) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    }
-                } else {
-                    val navController = rememberNavController()
-
-                    NavHost(
-                        navController = navController,
-                        startDestination = ApprovalRoute(sessionId = initialPairId),
-                        enterTransition = {
-                            slideInHorizontally(
-                                initialOffsetX = { it },
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
-                            ) + fadeIn(animationSpec = tween(300))
-                        },
-                        exitTransition = {
-                            slideOutHorizontally(
-                                targetOffsetX = { -it / 3 },
-                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                            ) + fadeOut(animationSpec = tween(200))
-                        },
-                        popEnterTransition = {
-                            slideInHorizontally(
-                                initialOffsetX = { -it / 3 },
-                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                            ) + fadeIn(animationSpec = tween(300))
-                        },
-                        popExitTransition = {
-                            slideOutHorizontally(
-                                targetOffsetX = { it },
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
-                            ) + fadeOut(animationSpec = tween(200))
+                    LaunchedEffect(Unit) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
-                    ) {
-                        approvalScreen(
-                            onNavigateToPairingQr = {
-                                navController.navigate(PairingRoute)
-                            }
-                        )
+                        initialPairId = pairingRepository.getPairId()
+                        isCheckingPairing = false
+                    }
 
-                        pairingScreen(
-                            onNavigateBack = {
-                                navController.popBackStack()
+                    if (isCheckingPairing) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
+                    } else {
+                        val navController = rememberNavController()
+
+                        NavHost(
+                            navController = navController,
+                            startDestination = ApprovalRoute(sessionId = initialPairId),
+                            enterTransition = {
+                                slideInHorizontally(
+                                    initialOffsetX = { it },
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                ) + fadeIn(animationSpec = tween(300))
                             },
-                            onPairingSuccess = {
-                                coroutineScope.launch {
-                                    val pairId = pairingRepository.getPairId() ?: "test-pair"
-                                    navController.navigate(ApprovalRoute(sessionId = pairId)) {
-                                        popUpTo<ApprovalRoute> { inclusive = true }
+                            exitTransition = {
+                                slideOutHorizontally(
+                                    targetOffsetX = { -it / 3 },
+                                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                ) + fadeOut(animationSpec = tween(200))
+                            },
+                            popEnterTransition = {
+                                slideInHorizontally(
+                                    initialOffsetX = { -it / 3 },
+                                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                ) + fadeIn(animationSpec = tween(300))
+                            },
+                            popExitTransition = {
+                                slideOutHorizontally(
+                                    targetOffsetX = { it },
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                ) + fadeOut(animationSpec = tween(200))
+                            }
+                        ) {
+                            approvalScreen(
+                                onNavigateToPairingQr = {
+                                    navController.navigate(PairingRoute)
+                                }
+                            )
+
+                            pairingScreen(
+                                onNavigateBack = {
+                                    navController.popBackStack()
+                                },
+                                onPairingSuccess = {
+                                    coroutineScope.launch {
+                                        val pairId = pairingRepository.getPairId() ?: "test-pair"
+                                        navController.navigate(ApprovalRoute(sessionId = pairId)) {
+                                            popUpTo<ApprovalRoute> { inclusive = true }
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
