@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLI Architecture Refactor**:
   - Renamed legacy `:desktopApp` module and directory to `:cli` across Gradle build scripts, launch wrappers, and documentation.
   - Updated `handoff.bat` and `handoff.sh` to execute the fast standalone distribution binary (`cli/build/install/cli/bin/cli.bat`).
+- **Documentation**:
+  - Switched the main project logo format from SVG to PNG (`Handoff_Logo.png`) in `README.md`.
+
+### Fixed
+- Fixed Android app name displaying as "AgentApprove" by normalizing all `app_name` string resources to "HandOff" in `:androidApp` and `:mobile:feature:approval`.
+- Fixed MCP server IDE identification in headless agent environments by adding explicit checks for the `ANTIGRAVITY_AGENT` environment variable.
+- Fixed MCP server workspace detection in headless agent environments by adding fallback support for the `HANDOFF_WORKSPACE` environment variable, injected via `mcp_config.json`.
 
 ## [1.3.1] - 2026-09-04
 

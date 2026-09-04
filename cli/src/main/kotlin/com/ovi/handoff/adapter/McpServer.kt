@@ -524,7 +524,7 @@ object McpServer {
     private fun detectInitialAgentId(): String {
         val env = System.getenv()
         return when {
-            env.containsKey("ANTIGRAVITY_IDE") || env.containsKey("GEMINI_CLI") -> "antigravity"
+            env.containsKey("ANTIGRAVITY_IDE") || env.containsKey("ANTIGRAVITY_AGENT") || env.containsKey("GEMINI_CLI") -> "antigravity"
             env.containsKey("CURSOR_VERSION") || env.containsKey("CURSOR_PID") -> "cursor"
             env.containsKey("CLAUDE_CODE") -> "claude"
             env.containsKey("VSCODE_PID") -> "vscode"
@@ -543,6 +543,10 @@ object McpServer {
     }
 
     private fun detectCurrentWorkspaceName(): String {
+        val envWorkspace = System.getenv("HANDOFF_WORKSPACE")
+        if (!envWorkspace.isNullOrBlank()) {
+            return File(envWorkspace).name
+        }
         val currentDir = File(".").canonicalFile
         return currentDir.name.ifBlank { "Workspace" }
     }
