@@ -1,13 +1,12 @@
 package com.ovi.handoff.mobile.domain.usecase
 
 import com.ovi.handoff.mobile.domain.repository.RelayRepository
-import com.ovi.handoff.shared.model.PermissionRequest
+import com.ovi.handoff.mobile.domain.repository.RequestRecord
 import kotlinx.coroutines.flow.Flow
 
-class GetRequestHistoryUseCase(
+/** Audit history, newest first, including what was decided for each request. */
+public class GetRequestHistoryUseCase(
     private val relayRepository: RelayRepository
 ) {
-    operator fun invoke(): Flow<List<PermissionRequest>> {
-        return relayRepository.observeHistory()
-    }
+    public operator fun invoke(): Flow<List<RequestRecord>> = relayRepository.observeHistory()
 }

@@ -1,5 +1,16 @@
-CREATE TABLE IF NOT EXISTS push_tokens (
-    pair_id TEXT PRIMARY KEY,
-    token TEXT NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- Legacy schema, retained only so an existing deployment can be cleaned up.
+--
+-- The relay no longer binds D1. A pair's push token is per-room state and now lives in Durable
+-- Object storage, which removes a cross-service round trip from the push path and closes the write
+-- path that let any client claiming to be a phone overwrite another pair's token.
+--
+-- After deploying the v2 relay, drop the old table:
+--
+--   wrangler d1 execute agentapprove-d1 --command "DROP TABLE IF EXISTS push_tokens"
+--
+-- Original definition, for reference:
+-- CREATE TABLE IF NOT EXISTS push_tokens (
+--     pair_id TEXT PRIMARY KEY,
+--     token TEXT NOT NULL,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- );

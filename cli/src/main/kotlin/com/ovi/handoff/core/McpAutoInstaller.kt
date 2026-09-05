@@ -1,107 +1,257 @@
 package com.ovi.handoff.core
 
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import java.io.File
 
-object McpAutoInstaller {
-    
-    fun install() {
-        val (execCommand, execArgs) = getExecutableCommand()
-        val os = System.getProperty("os.name").lowercase()
-        val configFiles = mutableListOf<File>()
-        
-        val home = System.getProperty("user.home")
-        val appData = System.getenv("APPDATA")
-        
-        // Claude Desktop
-        if (os.contains("win") && appData != null) {
-            configFiles.add(File(appData, "Claude/claude_desktop_config.json"))
-        } else if (os.contains("mac")) {
-            configFiles.add(File(home, "Library/Application Support/Claude/claude_desktop_config.json"))
-        }
+/**
+ * Registers HandOff as an MCP server in the IDEs that support it.
+ *
+ * Two problems made the original unreliable. It derived the launch command from the *current working
+ * directory* (`./cli/build/install/cli/lib/...`), so the generated config broke the moment the repo
+ * moved or `--install` was run from anywhere else. And it only wrote Claude Desktop and Gemini
+ * configs, while the README advertised Cursor and Claude Code support that was never implemented.
+ *
+ * The launch command is now derived from the classpath of the running process, and every write goes
+ * through a backup and an atomic replace so a half-written config cannot break the user's IDE.
+ */
+public object McpAutoInstaller {
 
-        // Antigravity (Gemini) configuration
-        configFiles.add(File(home, ".gemini/config/mcp_config.json"))
-        // Antigravity IDE root configuration
-        configFiles.add(File(home, ".gemini/antigravity-ide/mcp_config.json"))
+    public fun install() {
+        val launcher = resolveLauncher()
+        val targets = discoverTargets()
 
-        var installedAny = false
+        println("Launch command:")
+        println("  ${launcher.command} ${launcher.args.joinToString(" ")}")
+        println()
 
-        for (file in configFiles) {
-            if (file.exists()) {
-                println("Found MCP config at: ${file.absolutePath}")
-                if (injectHandoffConfig(file, execCommand, execArgs)) {
-                    installedAny = true
+        var installed = 0
+        var skipped = 0
+
+        for (target in targets) {
+            when {
+                target.file.exists() -> {
+                    if (inject(target, launcher)) installed++ else skipped++
                 }
-            } else {
-                if (file.parentFile?.exists() == true) {
-                    println("Creating MCP config at: ${file.absolutePath}")
-                    file.writeText("{}")
-                    if (injectHandoffConfig(file, execCommand, execArgs)) {
-                        installedAny = true
-                    }
+                // Only create a config for a tool that is actually installed, inferred from the
+                // presence of its parent directory. Writing configs for absent tools litters $HOME.
+                target.file.parentFile?.exists() == true || target.createParentIfToolPresent() -> {
+                    println("Creating ${target.label} config at ${target.file.absolutePath}")
+                    if (inject(target, launcher)) installed++ else skipped++
+                }
+                else -> {
+                    skipped++
                 }
             }
         }
 
-        if (!installedAny) {
-            println("Could not find any standard MCP configuration files.")
-            println("To install manually, add the following to your MCP config:")
-            println(generateHandoffConfigSnippet(execCommand, execArgs))
+        println()
+        if (installed == 0) {
+            println("No MCP configuration files were found.")
+            println("Add this to your agent's MCP config manually:")
+            println()
+            println(manualSnippet(launcher))
         } else {
-            println("Installation complete! Please restart your AI Agent/IDE.")
+            println("Updated $installed configuration file(s). Restart your IDE or agent to pick it up.")
+            if (skipped > 0) {
+                println("Skipped $skipped location(s) whose tool does not appear to be installed.")
+            }
         }
     }
 
-    private fun getExecutableCommand(): Pair<String, List<String>> {
-        val currentDir = File(".").canonicalFile
-        val rootDir = if (currentDir.name == "cli") currentDir.parentFile else currentDir
-        val libDir = File(rootDir, "cli/build/install/cli/lib").absolutePath
-        val cp = "$libDir/*"
-        return Pair("java", listOf("-classpath", cp, "com.ovi.handoff.MainKt", "--mcp"))
+    // -------------------------------------------------------------------------------------
+    // Launcher resolution
+    // -------------------------------------------------------------------------------------
+
+    public class Launcher(public val command: String, public val args: List<String>)
+
+    /**
+     * Builds the command an IDE should run to start the MCP server.
+     *
+     * Resolution order, most specific first:
+     *  1. `HANDOFF_LAUNCHER`, for packaged installs and for anyone wrapping the daemon.
+     *  2. The start script generated next to our own jar, which handles the classpath itself.
+     *  3. This process's own `java` binary and classpath, which is correct by construction whatever
+     *     the layout, unlike a path guessed from the working directory.
+     */
+    public fun resolveLauncher(): Launcher {
+        System.getenv("HANDOFF_LAUNCHER")?.takeIf { it.isNotBlank() }?.let { override ->
+            return Launcher(override, listOf("--mcp"))
+        }
+
+        startScriptNextToJar()?.let { script ->
+            return Launcher(script.absolutePath, listOf("--mcp"))
+        }
+
+        val javaBinary = File(System.getProperty("java.home"), if (isWindows()) "bin/java.exe" else "bin/java")
+        val javaPath = if (javaBinary.exists()) javaBinary.absolutePath else "java"
+
+        return Launcher(
+            javaPath,
+            listOf("-classpath", System.getProperty("java.class.path"), "com.ovi.handoff.MainKt", "--mcp")
+        )
     }
 
-    private fun injectHandoffConfig(file: File, command: String, args: List<String>): Boolean {
-        return try {
-            val content = file.readText()
-            val jsonElement = if (content.isBlank()) JsonObject(emptyMap()) else Json.parseToJsonElement(content).jsonObject
-            
-            val mcpServers = jsonElement["mcpServers"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
-            
-            val handoffConfig = buildJsonObject {
-                put("command", command)
-                put("args", buildJsonArray {
-                    args.forEach { add(it) }
-                })
+    /** Finds `bin/handoff` or `bin/cli` in an `installDist`-style layout containing our jar. */
+    private fun startScriptNextToJar(): File? {
+        val location = runCatching {
+            McpAutoInstaller::class.java.protectionDomain?.codeSource?.location?.toURI()?.let { File(it) }
+        }.getOrNull() ?: return null
+
+        if (!location.isFile || !location.name.endsWith(".jar")) return null
+
+        // installDist produces <root>/lib/<jar> alongside <root>/bin/<script>.
+        val installRoot = location.parentFile?.takeIf { it.name == "lib" }?.parentFile ?: return null
+        val binDir = File(installRoot, "bin").takeIf { it.isDirectory } ?: return null
+
+        val candidates = if (isWindows()) {
+            listOf("handoff.bat", "cli.bat")
+        } else {
+            listOf("handoff", "cli")
+        }
+        return candidates.map { File(binDir, it) }.firstOrNull { it.isFile }
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Targets
+    // -------------------------------------------------------------------------------------
+
+    private class Target(
+        val label: String,
+        val file: File,
+        /** Directory whose existence proves the tool is installed, when the config dir is missing. */
+        val toolMarker: File?
+    ) {
+        fun createParentIfToolPresent(): Boolean {
+            val marker = toolMarker ?: return false
+            if (!marker.exists()) return false
+            return file.parentFile?.mkdirs() == true
+        }
+    }
+
+    private fun discoverTargets(): List<Target> {
+        val home = File(System.getProperty("user.home"))
+        val appData = System.getenv("APPDATA")?.let(::File)
+        val targets = mutableListOf<Target>()
+
+        // Claude Desktop
+        when {
+            isWindows() && appData != null ->
+                targets += Target("Claude Desktop", File(appData, "Claude/claude_desktop_config.json"), File(appData, "Claude"))
+            isMac() -> targets += Target(
+                "Claude Desktop",
+                File(home, "Library/Application Support/Claude/claude_desktop_config.json"),
+                File(home, "Library/Application Support/Claude")
+            )
+            else -> targets += Target(
+                "Claude Desktop",
+                File(home, ".config/Claude/claude_desktop_config.json"),
+                File(home, ".config/Claude")
+            )
+        }
+
+        // Claude Code keeps MCP servers in its own top-level config.
+        targets += Target("Claude Code", File(home, ".claude.json"), File(home, ".claude"))
+
+        // Cursor
+        targets += Target("Cursor", File(home, ".cursor/mcp.json"), File(home, ".cursor"))
+
+        // Windsurf
+        targets += Target(
+            "Windsurf",
+            File(home, ".codeium/windsurf/mcp_config.json"),
+            File(home, ".codeium")
+        )
+
+        // Antigravity / Gemini
+        targets += Target("Antigravity", File(home, ".gemini/config/mcp_config.json"), File(home, ".gemini"))
+        targets += Target("Antigravity IDE", File(home, ".gemini/antigravity-ide/mcp_config.json"), File(home, ".gemini"))
+
+        // VS Code user-level MCP config
+        val vsCodeUserDir = when {
+            isWindows() && appData != null -> File(appData, "Code/User")
+            isMac() -> File(home, "Library/Application Support/Code/User")
+            else -> File(home, ".config/Code/User")
+        }
+        targets += Target("VS Code", File(vsCodeUserDir, "mcp.json"), vsCodeUserDir)
+
+        return targets
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Writing
+    // -------------------------------------------------------------------------------------
+
+    private val writer = Json { prettyPrint = true }
+    private val reader = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    private fun inject(target: Target, launcher: Launcher): Boolean {
+        return runCatching {
+            val existingText = if (target.file.exists()) target.file.readText() else ""
+            val root = if (existingText.isBlank()) {
+                JsonObject(emptyMap())
+            } else {
+                reader.parseToJsonElement(existingText).jsonObject
             }
-            
-            mcpServers["handoff"] = handoffConfig
-            
-            val updatedConfig = buildJsonObject {
-                jsonElement.forEach { (key, value) -> put(key, value) }
-                put("mcpServers", JsonObject(mcpServers))
+
+            // VS Code nests servers under "servers"; everyone else uses "mcpServers".
+            val serversKey = if (root.containsKey("servers")) "servers" else "mcpServers"
+            val servers = root[serversKey]?.jsonObject?.toMutableMap() ?: mutableMapOf()
+
+            val entry = buildJsonObject {
+                put("command", launcher.command)
+                put("args", buildJsonArray { launcher.args.forEach { add(it) } })
             }
-            
-            val json = Json { prettyPrint = true }
-            file.writeText(json.encodeToString(updatedConfig))
-            println("  -> Successfully injected 'handoff' server configuration.")
+
+            if (servers["handoff"] == entry) {
+                println("  ${target.label}: already up to date.")
+                return true
+            }
+
+            servers["handoff"] = entry
+
+            val updated = buildJsonObject {
+                root.forEach { (key, value) -> if (key != serversKey) put(key, value) }
+                put(serversKey, JsonObject(servers))
+            }
+
+            // Back up before replacing: an IDE config often holds settings the user cannot recover.
+            if (target.file.exists()) {
+                target.file.copyTo(File(target.file.parentFile, "${target.file.name}.handoff-backup"), overwrite = true)
+            }
+            SecureFiles.writeAtomicText(target.file, writer.encodeToString(JsonObject.serializer(), updated))
+
+            println("  ${target.label}: registered 'handoff'.")
             true
-        } catch (e: Exception) {
-            println("  -> Failed to update config: ${e.message}")
+        }.getOrElse { cause ->
+            println("  ${target.label}: could not update ${target.file.absolutePath} (${cause.message}).")
             false
         }
     }
 
-    private fun generateHandoffConfigSnippet(command: String, args: List<String>): String {
-        val formattedArgs = args.joinToString(", ") { "\"$it\"" }
-        val escapedCommand = command.replace("\\", "\\\\")
+    private fun manualSnippet(launcher: Launcher): String {
+        val args = launcher.args.joinToString(", ") { "\"${it.replace("\\", "\\\\")}\"" }
+        val command = launcher.command.replace("\\", "\\\\")
         return """
-            "mcpServers": {
+            {
+              "mcpServers": {
                 "handoff": {
-                    "command": "$escapedCommand",
-                    "args": [$formattedArgs]
+                  "command": "$command",
+                  "args": [$args]
                 }
+              }
             }
         """.trimIndent()
+    }
+
+    private fun isWindows(): Boolean = System.getProperty("os.name").lowercase().contains("win")
+
+    private fun isMac(): Boolean = System.getProperty("os.name").lowercase().let {
+        it.contains("mac") || it.contains("darwin")
     }
 }

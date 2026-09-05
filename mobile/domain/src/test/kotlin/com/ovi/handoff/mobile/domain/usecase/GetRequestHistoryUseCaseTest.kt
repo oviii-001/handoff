@@ -2,6 +2,7 @@ package com.ovi.handoff.mobile.domain.usecase
 
 import app.cash.turbine.test
 import com.ovi.handoff.mobile.domain.repository.RelayRepository
+import com.ovi.handoff.mobile.domain.repository.RequestRecord
 import com.ovi.handoff.shared.model.AgentInfo
 import com.ovi.handoff.shared.model.PermissionInfo
 import com.ovi.handoff.shared.model.PermissionRequest
@@ -32,13 +33,19 @@ class GetRequestHistoryUseCaseTest {
             createdAt = "",
             expiresAt = ""
         )
+        val record = RequestRecord(
+            request = dummyRequest,
+            isPending = false,
+            decision = null,
+            decidedAtEpochMs = null
+        )
 
-        every { repository.observeHistory() } returns flowOf(listOf(dummyRequest))
+        every { repository.observeHistory() } returns flowOf(listOf(record))
 
         useCase().test {
             val list = awaitItem()
             assertEquals(1, list.size)
-            assertEquals("req-1", list[0].id)
+            assertEquals("req-1", list[0].request.id)
             awaitComplete()
         }
     }

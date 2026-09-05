@@ -13,19 +13,28 @@ android {
         minSdk = libs.versions.android.minSdk.get().toInt()
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    sourceSets {
+        // Lets the migration test read the generated schemas.
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
     }
 }
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
+ksp {
+    // Required by `exportSchema = true`, and what the migration test validates against.
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
-    implementation(project(":mobile:domain"))
+    api(project(":mobile:domain"))
     implementation(project(":shared"))
     implementation(libs.koin.core)
     implementation(libs.koin.android)
@@ -44,4 +53,8 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
+
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.testExt.junit)
+    androidTestImplementation(libs.junit)
 }

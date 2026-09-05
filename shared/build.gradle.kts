@@ -7,15 +7,17 @@ plugins {
 }
 
 kotlin {
+    jvmToolchain(17)
+
     jvm()
-    
+
     android {
        namespace = "com.ovi.handoff.shared"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
-    
+
        compilerOptions {
-           jvmTarget = JvmTarget.JVM_11
+           jvmTarget = JvmTarget.JVM_17
        }
        androidResources {
            enable = false
@@ -29,10 +31,12 @@ kotlin {
            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
        }
     }
-    
+
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.kotlinx.serialization.json)
+            // `api`, not `implementation`: Envelope.payload is a JsonElement, so consumers of the
+            // protocol package need kotlinx-serialization on their compile classpath.
+            api(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

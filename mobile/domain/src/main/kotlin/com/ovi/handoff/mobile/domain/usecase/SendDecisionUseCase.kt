@@ -1,12 +1,11 @@
 package com.ovi.handoff.mobile.domain.usecase
 
-import com.ovi.handoff.mobile.domain.repository.RelayRepository
-import com.ovi.handoff.shared.model.PermissionDecision
-
-class SendDecisionUseCase(
-    private val relayRepository: RelayRepository
-) {
-    suspend operator fun invoke(pairId: String, decision: PermissionDecision): Result<Unit> {
-        return relayRepository.sendDecision(pairId, decision)
-    }
-}
+/**
+ * Intentionally empty.
+ *
+ * Decision building, signing and sending now live in [SubmitDecisionUseCase]. Two callers used to
+ * assemble their own unsigned `PermissionDecision` through the old use case here, which is how they
+ * drifted apart on device id and both ended up sending an empty signature.
+ *
+ * This file can be deleted; it remains only so the change does not depend on a file removal.
+ */

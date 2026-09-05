@@ -1,17 +1,24 @@
 name = "agentapprove-relay"
 main = "src/index.ts"
-compatibility_date = "2023-12-01"
+
+# v1 pinned 2023-12-01, which predates several of the runtime behaviours this worker now relies on.
+compatibility_date = "2025-06-01"
+
+[observability]
+enabled = true
 
 [durable_objects]
 bindings = [
   { name = "RELAY_ROOM", class_name = "RelayRoom" }
 ]
 
+# SQLite-backed Durable Objects. The class was already declared this way but never used storage;
+# pending requests, the pairing token hash, the push token and the cached OAuth token now live here.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["RelayRoom"]
 
-[[d1_databases]]
-binding = "DB"
-database_name = "agentapprove-d1"
-database_id = "70243ecb-09b3-4393-819f-5c2869819491"
+# D1 is deliberately not bound any more. The only thing it held was one push token per pair, which
+# is per-room state: keeping it in Durable Object storage removes a cross-service round trip from
+# the push path and removes the write that let any client claiming to be a phone overwrite a pair's
+# token. `schema.sql` is retained only for tearing down the old table.

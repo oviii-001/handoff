@@ -19,33 +19,36 @@ class PairDeviceUseCaseTest {
 
     @Test
     fun `when valid qr code scanned, repository pairs device successfully`() = runTest {
-        val qrPayload = "pair_12345"
+        val qrPayload = "handoff://pair?pairId=pair_12345&host=localhost&pubKey=abc&token=secret_tok_123"
         
-        coEvery { pairingRepository.pairDevice(any(), any()) } returns Result.success(Unit)
+        coEvery { pairingRepository.pairDevice(any()) } returns Result.success(Unit)
+        coEvery { relayRepository.announceIdentity(any()) } returns Result.success(Unit)
         coEvery { pushTokenProvider.getToken() } returns "mock_fcm_token"
         coEvery { relayRepository.registerPushToken(any(), any()) } returns Result.success(Unit)
         
         val result = useCase(qrPayload)
         
         assertTrue(result.isSuccess)
-        coVerify(exactly = 1) { pairingRepository.pairDevice(qrPayload, any()) }
+        coVerify(exactly = 1) { pairingRepository.pairDevice(match { it.pairId == "pair_12345" && it.pairSecret == "secret_tok_123" }) }
+        coVerify(exactly = 1) { relayRepository.announceIdentity("pair_12345") }
         coVerify(exactly = 1) { pushTokenProvider.getToken() }
-        coVerify(exactly = 1) { relayRepository.registerPushToken(qrPayload, "mock_fcm_token") }
+        coVerify(exactly = 1) { relayRepository.registerPushToken("pair_12345", "mock_fcm_token") }
     }
 
     @Test
     fun `when qr code contains pubKey, it is extracted and decoded`() = runTest {
         val base64PubKey = "YWJjZGVmZ2hpamtsbW5vcA"
-        val qrPayload = "handoff://pair?pairId=pair_12345&host=localhost&pubKey=$base64PubKey"
+        val qrPayload = "handoff://pair?pairId=pair_12345&host=localhost&pubKey=$base64PubKey&token=secret_tok_123"
         
-        coEvery { pairingRepository.pairDevice(any(), any()) } returns Result.success(Unit)
+        coEvery { pairingRepository.pairDevice(any()) } returns Result.success(Unit)
+        coEvery { relayRepository.announceIdentity(any()) } returns Result.success(Unit)
         coEvery { pushTokenProvider.getToken() } returns "mock_fcm_token"
         coEvery { relayRepository.registerPushToken(any(), any()) } returns Result.success(Unit)
         
         val result = useCase(qrPayload)
         
         assertTrue(result.isSuccess)
-        coVerify(exactly = 1) { pairingRepository.pairDevice("pair_12345", any()) }
+        coVerify(exactly = 1) { pairingRepository.pairDevice(match { it.pairId == "pair_12345" && it.desktopPublicKey == base64PubKey }) }
     }
 
     @Test
@@ -55,6 +58,6 @@ class PairDeviceUseCaseTest {
         val result = useCase(qrPayload)
         
         assertTrue(result.isFailure)
-        coVerify(exactly = 0) { pairingRepository.pairDevice(any(), any()) }
+        coVerify(exactly = 0) { pairingRepository.pairDevice(any()) }
     }
 }
