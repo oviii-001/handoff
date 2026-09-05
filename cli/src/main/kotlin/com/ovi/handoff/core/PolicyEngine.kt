@@ -217,8 +217,8 @@ public class PolicyEngine(private val policyFile: File) {
         val parsed = runCatching {
             Yaml.default.decodeFromString(Policy.serializer(), policyFile.readText())
         }.getOrElse { cause ->
-            System.err.println(
-                "[Handoff] ${policyFile.name} could not be parsed (${cause.message}). " +
+            Log.error(
+                "${policyFile.name} could not be parsed (${cause.message}). " +
                     "Falling back to asking for every request."
             )
             return CompiledPolicy(PolicyAction.ASK, emptyList(), lastModified, length)
@@ -227,9 +227,7 @@ public class PolicyEngine(private val policyFile: File) {
         val rules = parsed.rules.mapNotNull { rule ->
             val pattern = rule.condition.commandPattern?.let { raw ->
                 runCatching { raw.toRegex() }.getOrElse {
-                    System.err.println(
-                        "[Handoff] Ignoring a policy rule with an invalid commandPattern '$raw' (${it.message})."
-                    )
+                    Log.warn("Ignoring a policy rule with an invalid commandPattern '$raw' (${it.message}).")
                     return@mapNotNull null
                 }
             }

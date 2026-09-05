@@ -125,8 +125,8 @@ internal object SecureFiles {
     private fun warnOnce(file: File, cause: Throwable) {
         if (warned) return
         warned = true
-        System.err.println(
-            "[Handoff] Warning: could not restrict permissions on ${file.absolutePath} (${cause.message}). " +
+        Log.warn(
+            "Could not restrict permissions on ${file.absolutePath} (${cause.message}). " +
                 "Verify no other local user can read ~/.handoff."
         )
     }

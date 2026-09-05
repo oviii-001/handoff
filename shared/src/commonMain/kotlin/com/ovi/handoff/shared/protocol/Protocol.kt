@@ -45,6 +45,17 @@ public object FrameType {
 
     /** Relay to desktop: nobody decided before `expiresAt`, so stop waiting. */
     public const val EXPIRED: String = "expired"
+
+    /**
+     * Desktop to phone: the agent gave up on a request, so drop its card.
+     *
+     * Without this the phone keeps showing an approval for a tool call the IDE already cancelled,
+     * inviting the user to authorize something nobody is waiting on.
+     */
+    public const val CANCEL: String = "cancel"
+
+    /** Relay to either side: whether the peer on the other side currently holds a socket. */
+    public const val PRESENCE: String = "presence"
 }
 
 /**
@@ -82,11 +93,44 @@ public data class PairHello(
     val appVersion: String? = null
 )
 
-/** Relay acknowledgement. `status` is `stored` for requests and `delivered` for decisions. */
+/**
+ * Relay acknowledgement. `status` is `stored` for requests and `delivered` for decisions.
+ *
+ * The nullable fields were added after the desktop was found waiting a request's full five-minute
+ * TTL for a phone that was never going to answer. The relay already knows, at the moment it accepts
+ * a request, whether a phone socket was attached and whether a push could be sent; passing that
+ * back releases the agent in seconds instead of minutes.
+ *
+ * They are nullable rather than defaulted to false because "an older relay did not say" and "the
+ * relay said no" must behave differently: the first has to preserve the old full-TTL wait, only the
+ * second may shorten it.
+ */
 @Serializable
 public data class AckPayload(
     val requestId: String,
-    val status: String
+    val status: String,
+    /** Whether the frame reached a live socket on the other side. */
+    val delivered: Boolean? = null,
+    /** Whether a push notification was dispatched to wake a sleeping phone. */
+    val pushQueued: Boolean? = null,
+    /** Whether a phone currently holds a socket on this pair. */
+    val phoneOnline: Boolean? = null,
+    /** Whether a desktop currently holds a socket on this pair. */
+    val desktopOnline: Boolean? = null
+)
+
+/** Relay-to-peer notice that the other side attached or dropped its socket. */
+@Serializable
+public data class PresencePayload(
+    val phoneOnline: Boolean? = null,
+    val desktopOnline: Boolean? = null
+)
+
+/** Desktop-to-phone notice that a request no longer needs an answer. */
+@Serializable
+public data class CancelPayload(
+    val requestId: String,
+    val reason: String = "cancelled_by_agent"
 )
 
 /** Relay-side expiry notice, so a request abandoned on the phone still unblocks the agent. */
@@ -137,6 +181,13 @@ public object EnvelopeCodec {
     public fun encodePairHello(hello: PairHello): String =
         encode(type = FrameType.PAIR_HELLO, payload = json.encodeToJsonElement(PairHello.serializer(), hello))
 
+    public fun encodeCancel(cancel: CancelPayload): String =
+        encode(
+            type = FrameType.CANCEL,
+            payload = json.encodeToJsonElement(CancelPayload.serializer(), cancel),
+            requestId = cancel.requestId
+        )
+
     /** Returns null when [text] is not JSON at all, rather than throwing on every stray frame. */
     public fun decode(text: String): Envelope? {
         val element = runCatching { json.parseToJsonElement(text) }.getOrNull() as? JsonObject ?: return null
@@ -183,5 +234,20 @@ public object EnvelopeCodec {
     public fun asPairHello(envelope: Envelope): PairHello? {
         val payload = envelope.payload ?: return null
         return runCatching { json.decodeFromJsonElement(PairHello.serializer(), payload) }.getOrNull()
+    }
+
+    public fun asAck(envelope: Envelope): AckPayload? {
+        val payload = envelope.payload ?: return null
+        return runCatching { json.decodeFromJsonElement(AckPayload.serializer(), payload) }.getOrNull()
+    }
+
+    public fun asPresence(envelope: Envelope): PresencePayload? {
+        val payload = envelope.payload ?: return null
+        return runCatching { json.decodeFromJsonElement(PresencePayload.serializer(), payload) }.getOrNull()
+    }
+
+    public fun asCancel(envelope: Envelope): CancelPayload? {
+        val payload = envelope.payload ?: return null
+        return runCatching { json.decodeFromJsonElement(CancelPayload.serializer(), payload) }.getOrNull()
     }
 }

@@ -3,11 +3,15 @@ package com.ovi.handoff
 import com.ovi.handoff.adapter.McpServer
 import com.ovi.handoff.core.CommandWrapper
 import com.ovi.handoff.core.DesktopConfigManager
+import com.ovi.handoff.core.Doctor
 import com.ovi.handoff.core.KeyStoreManager
 import com.ovi.handoff.core.McpAutoInstaller
+import com.ovi.handoff.core.PairingFlow
 import com.ovi.handoff.core.RelayClient
+import com.ovi.handoff.core.RelayEndpoint
 import com.ovi.handoff.core.RequestFactory
-import com.ovi.handoff.core.TerminalQrGenerator
+import com.ovi.handoff.core.decisionOrNull
+import com.ovi.handoff.core.explain
 import com.ovi.handoff.shared.model.AgentInfo
 import com.ovi.handoff.shared.model.PermissionInfo
 import com.ovi.handoff.shared.model.PermissionType
@@ -19,8 +23,6 @@ import com.ovi.handoff.shared.model.isApproval
 import com.ovi.handoff.shared.protocol.Protocol
 import kotlinx.coroutines.runBlocking
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URI
 
 private const val DIVIDER = "=================================================="
 
@@ -31,9 +33,11 @@ public fun main(args: Array<String>) {
             McpServer.run()
         }
 
-        args.contains("--pair") -> printPairing()
+        args.contains("--pair") -> PairingFlow.run()
         args.contains("--rotate-pair") -> rotatePairing()
         args.contains("--status") -> printStatus()
+        args.contains("--doctor") -> Doctor.run()
+        args.contains("--install-path") -> installCliPath()
         args.contains("--install") -> {
             println(DIVIDER)
             println(" HandOff MCP installer")
@@ -66,41 +70,6 @@ public fun main(args: Array<String>) {
 // Pairing
 // -------------------------------------------------------------------------------------------
 
-private fun printPairing() {
-    val config = DesktopConfigManager.loadConfig()
-    val keyStore = KeyStoreManager(File(System.getProperty("user.home"), ".handoff/keys"))
-    val publicKey = KeyStoreManager.encodePublicKey(keyStore.getOrGenerateKeyPair().public)
-
-    // The pairing link carries the relay token as well as the key. Without the token the phone
-    // cannot authenticate to the relay, which is what keeps a guessed pair id from being enough to
-    // approve commands.
-    val pairUrl = buildString {
-        append("handoff://pair")
-        append("?v=").append(Protocol.VERSION)
-        append("&pairId=").append(config.pairId)
-        append("&host=").append(config.relayHost)
-        append("&pubKey=").append(publicKey)
-        append("&token=").append(config.pairSecret)
-    }
-
-    println(DIVIDER)
-    println(" HandOff pairing")
-    println(DIVIDER)
-    println("Pair ID  : ${config.pairId}")
-    println("Relay    : ${config.relayHost}")
-    println("Protocol : ${Protocol.VERSION}")
-    println()
-    println("Scan this with the HandOff app:")
-    TerminalQrGenerator.printQrCode(pairUrl)
-    println("Cannot scan? Paste this link into the app's manual pairing field:")
-    println()
-    println("  $pairUrl")
-    println()
-    println("Treat that link like a password: it authorizes a device to approve your agent's actions.")
-    println("Run `handoff --rotate-pair` to invalidate it.")
-    println(DIVIDER)
-}
-
 private fun rotatePairing() {
     val rotated = DesktopConfigManager.rotatePair()
     println(DIVIDER)
@@ -119,31 +88,94 @@ private fun printStatus() {
     println(DIVIDER)
     println(" HandOff status")
     println(DIVIDER)
-    println("Pair ID       : ${config.pairId}")
-    println("Relay         : ${config.relayHost}")
-    println("Protocol      : ${Protocol.VERSION}")
-    println("Signing key   : ${if (File(keyDir, "device.priv").exists()) "present" else "not generated yet"}")
-    println("Phone paired  : ${if (config.mobilePublicKey != null) "yes (${config.mobileDeviceId})" else "no"}")
-    println("Relay reachable: ${probeRelay(config.relayHost)}")
+    println("Pair ID        : ${config.pairId}")
+    println("Relay          : ${config.relayHost}")
+    println("Protocol       : ${Protocol.VERSION}")
+    println("Signing key    : ${if (File(keyDir, "device.priv").exists()) "present" else "not generated yet"}")
+    println("Phone paired   : ${if (config.mobilePublicKey != null) "yes (${config.mobileDeviceId})" else "no"}")
+    println("Relay reachable: ${describeHealth(RelayEndpoint.health(config.relayHost))}")
     if (config.mobilePublicKey == null) {
         println()
         println("The phone has not announced a signing key yet, so decisions cannot be verified.")
         println("Run `handoff --pair` and scan the code with the app.")
     }
+    println()
+    println("Run `handoff --doctor` for a full diagnosis.")
     println(DIVIDER)
 }
 
-private fun probeRelay(host: String): String {
-    val scheme = if (host.startsWith("localhost") || host.startsWith("127.")) "http" else "https"
-    return runCatching {
-        val connection = URI("$scheme://$host/health").toURL().openConnection() as HttpURLConnection
-        connection.connectTimeout = 4_000
-        connection.readTimeout = 4_000
-        connection.requestMethod = "GET"
-        val code = connection.responseCode
-        connection.disconnect()
-        if (code in 200..299) "yes" else "responded with HTTP $code"
-    }.getOrElse { "no (${it.message})" }
+private fun describeHealth(health: RelayEndpoint.Health): String = when (health) {
+    is RelayEndpoint.Health.Up -> "yes (protocol ${health.protocol ?: "unknown"})"
+    is RelayEndpoint.Health.Unexpected -> "responded with HTTP ${health.statusCode}"
+    is RelayEndpoint.Health.Down -> "no (${health.reason})"
+}
+
+private fun installCliPath() {
+    println(DIVIDER)
+    println(" HandOff CLI Global Path Setup")
+    println(DIVIDER)
+    val isWindows = System.getProperty("os.name")?.lowercase()?.contains("windows") == true
+    if (!isWindows) {
+        println("On macOS/Linux, create a symlink to handoff:")
+        println("  sudo ln -sf \"$(pwd)/handoff\" /usr/local/bin/handoff")
+        println(DIVIDER)
+        return
+    }
+
+    val localAppData = System.getenv("LOCALAPPDATA") ?: run {
+        println("Error: LOCALAPPDATA environment variable not found.")
+        println(DIVIDER)
+        return
+    }
+    val targetDir = File(localAppData, "Microsoft/WindowsApps")
+    if (!targetDir.exists()) targetDir.mkdirs()
+    val shimFile = File(targetDir, "handoff.cmd")
+
+    // Find handoff.bat by checking current working directory, codeSource location, and their ancestors
+    var handoffBat: File? = null
+    var candidateDir: File? = File(".").canonicalFile
+    while (candidateDir != null) {
+        val candidate = File(candidateDir, "handoff.bat")
+        if (candidate.exists()) {
+            handoffBat = candidate
+            break
+        }
+        candidateDir = candidateDir.parentFile
+    }
+
+    if (handoffBat == null) {
+        val codeSource = runCatching { File(::main.javaClass.protectionDomain.codeSource.location.toURI()) }.getOrNull()
+        candidateDir = if (codeSource?.isDirectory == true) codeSource else codeSource?.parentFile
+        while (candidateDir != null) {
+            val candidate = File(candidateDir, "handoff.bat")
+            if (candidate.exists()) {
+                handoffBat = candidate
+                break
+            }
+            candidateDir = candidateDir.parentFile
+        }
+    }
+
+    if (handoffBat == null || !handoffBat.exists()) {
+        println("Error: Could not locate 'handoff.bat'. Please run this command from within the HandOff repository.")
+        println(DIVIDER)
+        return
+    }
+
+    shimFile.writeText(
+        """
+        @echo off
+        call "${handoffBat.absolutePath}" %*
+        """.trimIndent() + "\r\n"
+    )
+    println("SUCCESS: HandOff CLI registered in WindowsApps PATH:")
+    println("  ${shimFile.absolutePath}")
+    println()
+    println("You can now run 'handoff' directly from ANY terminal:")
+    println("  handoff --pair")
+    println("  handoff --status")
+    println("  handoff --doctor")
+    println(DIVIDER)
 }
 
 // -------------------------------------------------------------------------------------------
@@ -296,7 +328,7 @@ private fun runScenario(scenario: TestScenario, args: Array<String>) {
     println("Risk    : ${scenario.risk.level.uppercase()}")
     println("Waiting for a decision on your phone...")
 
-    val decision = RelayClient(
+    val outcome = RelayClient(
         relayHost = DesktopConfigManager.getRelayHost(),
         pairId = pairId,
         pairSecret = DesktopConfigManager.getPairSecret(),
@@ -320,8 +352,10 @@ private fun runScenario(scenario: TestScenario, args: Array<String>) {
     }
 
     println()
+    val decision = outcome.decisionOrNull()
     if (decision == null) {
-        println("No decision arrived before the request expired.")
+        // Says which failure it was and what fixes it, rather than one timeout message for all of them.
+        println(outcome.explain())
         return
     }
 
@@ -343,9 +377,11 @@ private fun printUsage() {
     println("Usage: handoff [OPTION]")
     println()
     println("  --mcp                Run the MCP server on stdio (for AI agents)")
-    println("  --pair               Show the pairing QR code and link")
+    println("  --pair               Show the pairing code and wait for your phone to scan it")
     println("  --rotate-pair        Issue a new pair id and secret, invalidating paired phones")
     println("  --status             Show pairing, key and relay status")
+    println("  --doctor             Diagnose the whole setup and say what to fix")
+    println("  --install-path       Install 'handoff' command globally into user PATH (Windows / Linux / macOS)")
     println("  --install            Add HandOff to your IDE's MCP configuration")
     println("  --exec <command>     Require phone approval before running a local command")
     println()
@@ -358,6 +394,7 @@ private fun printUsage() {
     println("  HANDOFF_PAIR_ID      Override the configured pair id")
     println("  HANDOFF_RELAY_HOST   Override the relay host")
     println("  HANDOFF_WORKSPACE    Override the detected workspace path")
+    println("  HANDOFF_LAUNCHER     Command an IDE should run to start the MCP server")
     println("  HANDOFF_INSECURE=1   Accept unsigned decisions (pre-v2 phones only; not recommended)")
     println(DIVIDER)
 }

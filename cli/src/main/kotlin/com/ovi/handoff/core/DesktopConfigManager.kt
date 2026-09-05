@@ -76,7 +76,7 @@ public object DesktopConfigManager {
         if (!configFile.exists()) return null
         return runCatching { json.decodeFromString(DesktopConfig.serializer(), configFile.readText()) }
             .onFailure {
-                System.err.println("[Handoff] config.json is unreadable (${it.message}); regenerating pair identity.")
+                Log.error("config.json is unreadable (${it.message}); regenerating pair identity.")
             }
             .getOrNull()
     }
@@ -86,8 +86,8 @@ public object DesktopConfigManager {
         if (config.pairSecret.isNotBlank()) return config
         val upgraded = config.copy(pairSecret = newSecret())
         persist(upgraded)
-        System.err.println(
-            "[Handoff] Added a relay pairing secret to your config. Re-pair your phone with `handoff --pair`."
+        Log.warn(
+            "Added a relay pairing secret to your config. Re-pair your phone with `handoff --pair`."
         )
         return upgraded
     }
@@ -113,7 +113,7 @@ public object DesktopConfigManager {
         runCatching {
             SecureFiles.writeSecureText(configFile, json.encodeToString(DesktopConfig.serializer(), config))
         }.onFailure {
-            System.err.println("[Handoff] Could not write ${configFile.absolutePath}: ${it.message}")
+            Log.error("Could not write ${configFile.absolutePath}", it)
         }
     }
 
@@ -166,6 +166,15 @@ public object DesktopConfigManager {
     public fun getMobilePublicKey(): String? = loadConfig().mobilePublicKey
 
     public fun getMobileKeyAlgorithm(): String = loadConfig().mobileKeyAlgorithm
+
+    /**
+     * Whether a phone has completed pairing, meaning it announced a key we can verify against.
+     *
+     * Checked before sending an approval. A pair id alone proves nothing: it exists from the first
+     * run, so using it as the pairing test made every request from a never-paired desktop wait the
+     * full five-minute deadline for an answer that could not arrive.
+     */
+    public fun isPhonePaired(): Boolean = !getMobilePublicKey().isNullOrBlank()
 
     /**
      * Whether an unsigned or unverifiable decision may still be honoured.

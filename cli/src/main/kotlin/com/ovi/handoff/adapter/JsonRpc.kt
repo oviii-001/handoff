@@ -61,6 +61,22 @@ internal class JsonRpcTransport(stream: OutputStream) {
         )
     }
 
+    /** Server-initiated notification. Carries no id, so the client must not answer it. */
+    suspend fun notify(method: String, params: JsonObject = JsonObject(emptyMap())) {
+        write(
+            buildJsonObject {
+                put("jsonrpc", "2.0")
+                put("method", method)
+                put("params", params)
+            }
+        )
+    }
+
+    /** Pushes anything still buffered. Called on shutdown so a final reply is not lost. */
+    fun flush() {
+        runCatching { writer.flush() }
+    }
+
     private suspend fun write(frame: JsonObject) {
         val line = frame.toString()
         mutex.withLock {

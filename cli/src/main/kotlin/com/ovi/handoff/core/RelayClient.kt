@@ -5,8 +5,11 @@ import com.ovi.handoff.shared.model.DecisionType
 import com.ovi.handoff.shared.model.PermissionDecision
 import com.ovi.handoff.shared.model.PermissionRequest
 import com.ovi.handoff.shared.model.SessionAnnouncement
+import com.ovi.handoff.shared.protocol.AckPayload
+import com.ovi.handoff.shared.protocol.CancelPayload
 import com.ovi.handoff.shared.protocol.EnvelopeCodec
 import com.ovi.handoff.shared.protocol.FrameType
+import com.ovi.handoff.shared.protocol.PairHello
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
@@ -37,19 +40,16 @@ import kotlin.random.Random
 /**
  * The desktop's connection to the relay.
  *
- * Replaces a design that opened a fresh WebSocket per request, read the first text frame it saw,
- * and trusted it as the decision. Three consequences of that are fixed here:
+ * Frames are matched to the request they answer, decisions are signature-verified against the key
+ * the phone announced at pairing, and one connection is shared by every in-flight request.
  *
- *  - **Frames are matched to requests.** A decision must name the request it answers *and* carry a
- *    hash of that request's canonical bytes. Previously any first frame won, so a decision for a
- *    harmless request could authorize a dangerous one.
- *  - **Signatures are verified.** The phone signs `Canonical.decisionBytes` with the Ed25519 key it
- *    announced at pairing. An unsigned or mismatched decision is dropped.
- *  - **Nothing waits forever.** Each wait is bounded by the request's own deadline, and the relay
- *    also pushes an `expired` frame, so the agent is released either way.
- *
- * One connection is shared by every in-flight request, which also means a burst of tool calls no
- * longer pays for a TLS handshake each.
+ * The behaviour worth calling out is what happens when nobody answers. The wait used to run for the
+ * request's full deadline in every failure case, so an agent whose user had never paired a phone sat
+ * blocked for five minutes before being told "no decision arrived". The relay knows, at the instant
+ * it accepts a request, whether a phone socket was attached and whether a push went out; that now
+ * comes back on the ack and converts a five-minute stall into a [RelayWaitBudget.UNREACHABLE_GRACE_MS]
+ * one with an outcome the agent can explain to the user. A relay too old to report it keeps the old
+ * full-length wait, so the change cannot shorten a legitimate approval.
  */
 public class RelayClient(
     private val relayHost: String = DesktopConfig.DEFAULT_RELAY_HOST,
@@ -57,7 +57,9 @@ public class RelayClient(
     private val pairSecret: String = DesktopConfigManager.getPairSecret(),
     private val keyStoreManager: KeyStoreManager? = null,
     private val privateKey: PrivateKey? = null,
-    private val onAbort: () -> Unit = {}
+    private val onAbort: () -> Unit = {},
+    /** Called when the phone announces its signing key, which is what completes pairing. */
+    private val onPairHello: (PairHello) -> Unit = {}
 ) : java.io.Closeable {
 
     private val client = HttpClient(CIO) {
@@ -96,30 +98,68 @@ public class RelayClient(
     public var isConnected: Boolean = false
         private set
 
+    /**
+     * Whether a phone currently holds a socket on this pair, as last reported by the relay.
+     *
+     * Null when the relay has not said, which an older relay never will. Callers must render that
+     * as "unknown" rather than "offline".
+     */
+    @Volatile
+    public var phoneOnline: Boolean? = null
+        private set
+
+    /** Why the last connection attempt failed, for `--doctor` and for the status tool. */
+    @Volatile
+    public var lastConnectionError: String? = null
+        private set
+
     private class PendingApproval(
         val request: PermissionRequest,
         val requestHash: String,
-        val deferred: CompletableDeferred<PermissionDecision?>
-    )
+        val deferred: CompletableDeferred<ApprovalOutcome>
+    ) {
+        /** Set once the relay tells us nothing could reach the phone, so we only shorten once. */
+        @Volatile
+        var graceStarted: Boolean = false
+    }
 
     // ---------------------------------------------------------------------------------------
     // Public API
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Sends [request] and suspends until the user decides or the request's deadline passes.
-     * Returns null when no verified decision arrived.
+     * Sends [request] and suspends until the user decides, or until it becomes clear that nobody
+     * will.
+     *
+     * Never returns null and never throws for an ordinary failure: every way this can end is a named
+     * [ApprovalOutcome] carrying an explanation, because the caller's job is to tell a human what to
+     * do next.
      */
-    public suspend fun sendRequestAndWaitForDecision(request: PermissionRequest): PermissionDecision? {
+    public suspend fun sendRequestAndWaitForDecision(request: PermissionRequest): ApprovalOutcome {
+        // Asking a phone that has never paired can only ever time out, so say so now rather than
+        // holding the agent open for the request's full deadline first.
+        if (!DesktopConfigManager.isPhonePaired()) {
+            return ApprovalOutcome.NotPaired
+        }
+
         val signed = sign(request)
         val hash = Canonical.requestHash(signed)
-        val deferred = CompletableDeferred<PermissionDecision?>()
+        val pending = PendingApproval(signed, hash, CompletableDeferred())
 
-        inFlight[signed.id] = PendingApproval(signed, hash, deferred)
+        inFlight[signed.id] = pending
         try {
-            ensureConnected()
-            outbound.send(EnvelopeCodec.encodeRequest(signed))
-            return withTimeoutOrNull(waitBudgetMs(signed)) { deferred.await() }
+            try {
+                ensureConnected()
+                outbound.send(EnvelopeCodec.encodeRequest(signed))
+            } catch (cause: Exception) {
+                // The frame never left this process, so there is nothing to wait for. Reporting it
+                // as a timeout would blame the user for a local failure.
+                Log.error("Could not queue request ${signed.id}", cause)
+                return ApprovalOutcome.RelayUnreachable(cause.message ?: "the outbound queue is closed")
+            }
+
+            val budget = RelayWaitBudget.forDeadline(signed.expiresAtEpochMs, System.currentTimeMillis())
+            return withTimeoutOrNull(budget) { pending.deferred.await() } ?: ApprovalOutcome.Expired
         } finally {
             inFlight.remove(signed.id)
         }
@@ -131,9 +171,23 @@ public class RelayClient(
         outbound.send(EnvelopeCodec.encodeSessionInfo(announcement))
     }
 
-    /** Cancels a wait locally, for example when the IDE sends `notifications/cancelled`. */
-    public fun cancelRequest(requestId: String) {
-        inFlight.remove(requestId)?.deferred?.complete(null)
+    /** Opens the socket without sending anything, which is what claims the relay room. */
+    public fun start() {
+        ensureConnected()
+    }
+
+    /**
+     * Abandons a request: releases the local waiter and tells the phone to drop its card.
+     *
+     * Both halves matter. Without the frame the phone keeps offering an approval for a tool call the
+     * IDE already cancelled, and the relay keeps the request stored and replays it on reconnect.
+     */
+    public suspend fun cancelRequest(requestId: String, reason: String = "cancelled_by_agent") {
+        val removed = inFlight.remove(requestId)
+        removed?.deferred?.complete(ApprovalOutcome.Expired)
+        runCatching {
+            outbound.send(EnvelopeCodec.encodeCancel(CancelPayload(requestId = requestId, reason = reason)))
+        }
     }
 
     override fun close() {
@@ -168,6 +222,7 @@ public class RelayClient(
                 ) {
                     attempt = 0
                     isConnected = true
+                    lastConnectionError = null
 
                     val writer = launch {
                         for (frame in outbound) {
@@ -187,9 +242,13 @@ public class RelayClient(
                 }
             } catch (cause: Exception) {
                 if (!scope.isActive) return
-                System.err.println("[Handoff] Relay connection lost: ${cause.message}")
+                lastConnectionError = cause.message ?: cause::class.simpleName ?: "unknown error"
+                Log.warn("Relay connection lost: $lastConnectionError")
             } finally {
                 isConnected = false
+                // Presence is only meaningful while we hold a socket. Keeping the last value would
+                // let the status tool report a phone as online long after we stopped being told.
+                phoneOnline = null
             }
 
             if (!scope.isActive) return
@@ -203,13 +262,8 @@ public class RelayClient(
     }
 
     private fun socketUrl(): String {
-        val scheme = if (isLocalHost(relayHost)) "ws" else "wss"
+        val scheme = if (RelayEndpoint.isLocalHost(relayHost)) "ws" else "wss"
         return "$scheme://$relayHost/ws/desktop/$pairId"
-    }
-
-    private fun isLocalHost(host: String): Boolean {
-        val bare = host.substringBefore(':').lowercase()
-        return bare == "localhost" || bare == "127.0.0.1" || bare == "[::1]" || bare == "0.0.0.0"
     }
 
     // ---------------------------------------------------------------------------------------
@@ -227,70 +281,119 @@ public class RelayClient(
 
             FrameType.EXPIRED -> {
                 val requestId = envelope.requestId ?: return
-                inFlight.remove(requestId)?.deferred?.complete(null)
+                inFlight.remove(requestId)?.deferred?.complete(ApprovalOutcome.Expired)
+            }
+
+            FrameType.ACK -> handleAck(envelope.requestId, EnvelopeCodec.asAck(envelope))
+
+            FrameType.PRESENCE -> {
+                val presence = EnvelopeCodec.asPresence(envelope) ?: return
+                presence.phoneOnline?.let { phoneOnline = it }
             }
 
             FrameType.PAIR_HELLO -> {
                 val hello = EnvelopeCodec.asPairHello(envelope) ?: return
                 val parsed = KeyStoreManager.decodePublicKey(hello.publicKey, hello.algorithm)
                 if (parsed == null) {
-                    System.err.println("[Handoff] Phone announced an unreadable signing key; ignoring.")
+                    Log.warn("Phone announced an unreadable signing key; ignoring.")
                     return
                 }
                 mobileKey = parsed
                 mobileKeyAlgorithm = hello.algorithm
                 DesktopConfigManager.rememberMobileKey(hello.deviceId, hello.publicKey, hello.algorithm)
-                System.err.println(
-                    "[Handoff] Paired phone ${hello.deviceId} announced a ${hello.algorithm} signing key."
-                )
+                Log.info("Paired phone ${hello.deviceId} announced a ${hello.algorithm} signing key.")
+                runCatching { onPairHello(hello) }
             }
 
             FrameType.ABORT -> {
-                System.err.println("[Handoff] Emergency halt received from phone.")
+                Log.warn("Emergency halt received from phone.")
                 for (entry in inFlight.values) {
                     entry.deferred.complete(
-                        PermissionDecision(
-                            requestId = entry.request.id,
-                            decision = DecisionType.CANCEL,
-                            issuedAt = Instant.now().toString(),
-                            nonce = "abort",
-                            deviceId = "phone",
-                            requestHash = entry.requestHash,
-                            signature = ""
+                        ApprovalOutcome.Decided(
+                            PermissionDecision(
+                                requestId = entry.request.id,
+                                decision = DecisionType.CANCEL,
+                                issuedAt = Instant.now().toString(),
+                                nonce = "abort",
+                                deviceId = "phone",
+                                requestHash = entry.requestHash,
+                                signature = ""
+                            )
                         )
                     )
                 }
                 inFlight.clear()
                 onAbort()
             }
+        }
+    }
 
-            FrameType.ACK -> Unit // Storage confirmation; nothing to do on the desktop side.
+    /**
+     * Applies what the relay says about a request we sent.
+     *
+     * The ack is the only signal that arrives *before* a human is involved, which makes it the only
+     * chance to release the agent quickly when there is nobody to involve.
+     */
+    private fun handleAck(requestId: String?, ack: AckPayload?) {
+        val id = requestId ?: ack?.requestId ?: return
+        val pending = inFlight[id] ?: return
+        ack?.phoneOnline?.let { phoneOnline = it }
+
+        if (ack == null) return
+
+        if (ack.status == ACK_STATUS_REJECTED) {
+            inFlight.remove(id)
+            pending.deferred.complete(
+                ApprovalOutcome.RejectedByRelay("too many approvals are already waiting on your phone")
+            )
+            return
+        }
+
+        val grace = RelayWaitBudget.graceAfterAck(ack) ?: return
+        if (pending.graceStarted) return
+        pending.graceStarted = true
+
+        Log.info(
+            "Request $id reached no phone and no push was sent; waiting ${grace / 1000}s more before " +
+                "releasing the agent."
+        )
+
+        // A grace period rather than an immediate failure: the phone may be reconnecting right now,
+        // and the relay replays stored requests on attach, so a short wait still recovers many of
+        // these as real answers.
+        scope.launch {
+            delay(grace)
+            // Conditional removal, so a decision that arrived during the grace window wins the race
+            // rather than being overwritten by a "phone unreachable" verdict.
+            if (inFlight.remove(id, pending)) {
+                pending.deferred.complete(ApprovalOutcome.PhoneUnreachable)
+            }
         }
     }
 
     /**
      * Applies a decision only if it provably answers the request it names.
      *
-     * Each check below closes a distinct hole: an unknown id means the frame answers nothing we
-     * asked; a hash mismatch means it answers a *different* request; a replayed nonce means it is a
-     * captured frame; a bad signature means it did not come from the paired phone.
+     * Each check closes a distinct hole: an unknown id means the frame answers nothing we asked; a
+     * hash mismatch means it answers a *different* request; a replayed nonce means it is a captured
+     * frame; a bad signature means it did not come from the paired phone.
      */
     private fun acceptDecision(decision: PermissionDecision) {
         val pending = inFlight[decision.requestId]
         if (pending == null) {
-            System.err.println("[Handoff] Ignoring a decision for an unknown request ${decision.requestId}.")
+            Log.warn("Ignoring a decision for an unknown request ${decision.requestId}.")
             return
         }
 
         if (decision.requestHash != pending.requestHash) {
-            System.err.println(
-                "[Handoff] Rejected a decision for ${decision.requestId}: it was signed over a different request."
+            Log.warn(
+                "Rejected a decision for ${decision.requestId}: it was signed over a different request."
             )
             return
         }
 
         if (!seenNonces.add(decision.nonce)) {
-            System.err.println("[Handoff] Rejected a replayed decision for ${decision.requestId}.")
+            Log.warn("Rejected a replayed decision for ${decision.requestId}.")
             return
         }
 
@@ -303,21 +406,21 @@ public class RelayClient(
 
         if (!verified) {
             if (!DesktopConfigManager.allowUnverifiedDecisions()) {
-                System.err.println(
-                    "[Handoff] Rejected an unverified decision for ${decision.requestId}. " +
+                Log.error(
+                    "Rejected an unverified decision for ${decision.requestId}. " +
                         "Re-pair the phone with `handoff --pair`, or set HANDOFF_INSECURE=1 to accept " +
                         "unsigned decisions from a pre-v2 app."
                 )
                 return
             }
-            System.err.println(
-                "[Handoff] WARNING: accepting an UNVERIFIED decision for ${decision.requestId} " +
-                    "because HANDOFF_INSECURE is set. Anyone who can reach your relay room can approve commands."
+            Log.warn(
+                "WARNING: accepting an UNVERIFIED decision for ${decision.requestId} because " +
+                    "HANDOFF_INSECURE is set. Anyone who can reach your relay room can approve commands."
             )
         }
 
         inFlight.remove(decision.requestId)
-        pending.deferred.complete(decision)
+        pending.deferred.complete(ApprovalOutcome.Decided(decision))
     }
 
     // ---------------------------------------------------------------------------------------
@@ -335,17 +438,10 @@ public class RelayClient(
         val signature = runCatching {
             KeyStoreManager.encodeSignature(store.sign(Canonical.requestBytes(unsigned), key))
         }.getOrElse {
-            System.err.println("[Handoff] Could not sign request ${request.id}: ${it.message}")
+            Log.error("Could not sign request ${request.id}", it)
             null
         }
         return unsigned.copy(signature = signature)
-    }
-
-    /** How long to wait: the request's own deadline, clamped to something sane. */
-    private fun waitBudgetMs(request: PermissionRequest): Long {
-        val deadline = request.expiresAtEpochMs ?: return DEFAULT_WAIT_MS
-        val remaining = deadline - System.currentTimeMillis()
-        return remaining.coerceIn(MIN_WAIT_MS, MAX_WAIT_MS)
     }
 
     private companion object {
@@ -353,8 +449,6 @@ public class RelayClient(
         const val BASE_BACKOFF_MS = 1_000L
         const val MAX_BACKOFF_MS = 60_000L
         const val NONCE_CACHE_SIZE = 512
-        const val DEFAULT_WAIT_MS = 300_000L
-        const val MIN_WAIT_MS = 5_000L
-        const val MAX_WAIT_MS = 900_000L
+        const val ACK_STATUS_REJECTED = "rejected"
     }
 }

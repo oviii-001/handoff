@@ -45,7 +45,7 @@ public object CommandWrapper {
         val keyStore = KeyStoreManager(File(System.getProperty("user.home"), ".handoff/keys"))
         val keyPair = keyStore.getOrGenerateKeyPair()
 
-        val decision = RelayClient(
+        val outcome = RelayClient(
             relayHost = DesktopConfigManager.getRelayHost(),
             pairId = pairId,
             pairSecret = DesktopConfigManager.getPairSecret(),
@@ -71,8 +71,11 @@ public object CommandWrapper {
             }
         }
 
+        val decision = outcome.decisionOrNull()
         if (decision == null) {
-            System.err.println("Denied: no decision arrived before the request expired. Nothing was run.")
+            // Each unhappy path now says which one it was and how to fix it, instead of collapsing
+            // "you never paired a phone" and "you ignored the prompt" into one timeout message.
+            System.err.println("Not authorized. ${outcome.explain()}")
             exitProcess(1)
         }
 
