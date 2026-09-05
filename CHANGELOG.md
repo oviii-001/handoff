@@ -5,6 +5,100 @@ All notable changes to the HandOff project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-09-05
+
+Production hardening of the MCP connection path, push notification styling, and mobile UX overhaul.
+
+### Added
+- **6-Digit Pairing PIN & Clipboard Auto-Detection**:
+  - Desktop CLI generates a friendly 6-digit PIN (e.g. `178 324`) and registers it with the relay.
+  - Mobile app supports direct 6-digit PIN input without scanning QR codes or pasting long URLs.
+  - Automatic clipboard snooping detects pairing codes/links on resume and displays a 1-tap pairing card.
+  - Zero-touch pairing over ADB automatically injects pairing deep links into connected devices.
+- **Global Windows CLI Command (`handoff`)**:
+  - Installed a global command shim in `%LOCALAPPDATA%\Microsoft\WindowsApps\handoff.cmd`.
+  - Developers can run `handoff`, `handoff --pair`, `handoff --status`, and `handoff --doctor` from any terminal without `./handoff.bat`.
+- **Material 3 Expressive Push Notification Overhaul**:
+  - Risk-adaptive colorization (crimson `#D32F2F` for Critical with heads-up alerts; orange `#E65100` for High; teal `#0288D1` for Medium/Low).
+  - Monospace formatting for shell commands (`$> command_name`).
+  - Contextual direct action buttons (`[Approve Once]`, `[Deny]`, `[Answer]`, `[Review Plan]`).
+  - Clean Material 3 notification hierarchy without redundant circular initial-letter badges.
+- **Calm Approval UX**:
+  - Replaced anxiety-inducing shrinking progress bars with calm countdown badges (`⏱️ 4m left`).
+  - Added an interactive `[+5m Extend]` chip allowing users to extend review deadlines during complex code inspection.
+- **Clean UI Hierarchy**:
+  - Removed duplicate `IDE:` and `Working:` subtitles from `HomeTopAppBar` to ensure clean, developer-friendly presentation.
+
+### Fixed
+- **Pairing could not work while the IDE was closed.** `handoff --pair` printed a QR code and exited
+  without ever connecting to the relay. Because the relay assigns a pair room to the first *desktop*
+  socket, the room stayed unclaimed and the phone was refused with a bare `401`. `--pair` now opens
+  the socket first — claiming the room — then shows the code and waits, reporting `Paired with <id>`
+  when the phone arrives. It also diagnoses a failed claim, distinguishing an unreachable relay from
+  a pair id already claimed by another machine.
+- **The phone reported success for a pairing the relay had rejected.** `PairDeviceUseCase` wrote the
+  pairing to disk and returned success without confirming anything, so the app showed "Paired.
+  Waiting for your agent." while its socket was being refused. Pairing now waits for the relay to
+  accept the device, and on failure rolls the pairing back and shows the relay's own reason.
+- **An unpaired or unreachable phone blocked the agent for five minutes.** `RelayClient` waited each
+  request's full TTL in every failure case, and discarded the relay's `ack` — including
+  `status: "rejected"`. Approvals now fail immediately when no phone has ever paired, and within a
+  ~20 s grace window when the relay confirms the request reached no socket and no push was possible.
+- **VS Code integration silently did nothing.** The installer wrote `mcpServers`, but VS Code reads
+  `servers` with an explicit `"type": "stdio"`. The config shape is now a property of each target
+  rather than sniffed from existing file content, which got it wrong on every first install.
+- **The generated launch command rotted.** It was derived from the current working directory, so the
+  config broke when the repository moved. It is now derived from the running process's own
+  installation and uses a `lib/*` wildcard classpath, which survives dependency version bumps. This
+  also resolves the contradiction where the installer preferred `cli.bat` while `SETUP_GUIDE.md` told
+  users to avoid it.
+- **The protocol version was asserted, not negotiated.** The server always answered `2024-11-05`
+  whatever the client requested. It now echoes the client's version when supported
+  (`2025-06-18`, `2025-03-26`, `2024-11-05`) and otherwise names the newest it supports.
+- **`roots/list` was sent to clients that never declared the capability**, always under the same
+  hardcoded request id — two outstanding requests could share an id, which JSON-RPC forbids. It is
+  now capability-gated with a unique id per request, and a client's error reply is handled.
+- **Concurrent tool calls could mislabel each other's approval card.** `workspacePath` was a shared
+  field rewritten by every call; the working directory is now resolved per call and passed down.
+- **Cancelling a tool call left the approval on the phone.** `notifications/cancelled` only cancelled
+  the local job. It now also releases the relay request and sends a `cancel` frame, so the card
+  disappears and the request is not replayed on reconnect.
+- **`RelayRepositoryImplTest` did not compile** against the current constructor and has been rewritten.
+- Onboarding text told users to run `handoff daemon`, a command that has never existed, and the manual
+  pairing field invited a bare pair id, which is always rejected because it carries no relay token.
+
+### Added
+- **`handoff --doctor`**: checks local identity, relay reachability, pair-room claim, phone pairing
+  and presence, runs an in-process MCP handshake, and reports which IDEs have HandOff registered —
+  each failure printed with the command that fixes it.
+- **Stdout isolation.** The real stdout is claimed at startup and `System.out` is redirected to
+  stderr, so a stray `println` from any dependency can no longer corrupt the JSON-RPC stream — a
+  failure mode that presents as an unrecoverable hang.
+- **File logging** at `~/.handoff/logs/handoff.log`, size-capped with one rotation, so a support
+  report has an artifact that is not buried in per-IDE log panes.
+- **Relay delivery reporting** (additive, backward compatible): `ack` frames now carry `delivered`,
+  `pushQueued`, `phoneOnline` and `desktopOnline`; new `presence` frames tell each side whether its
+  peer holds a socket; a new `cancel` frame drops an abandoned request.
+- **Structured relay errors and a `GET /pair/:pairId` status route**, so a client that cannot open a
+  socket can still learn why. A rejected WebSocket upgrade is opaque to both Ktor and OkHttp.
+- **`connectionError` on `RelayRepository`**, surfaced in the connection banner, replacing a generic
+  "offline" with the relay's actual reason.
+- Tests where there were none: MCP protocol negotiation and dispatch, JSON-RPC transport framing and
+  concurrency, installer config shapes and idempotency, wait-budget arithmetic, relay ack/presence/
+  cancel/auth, and pairing rollback.
+
+### Changed
+- `sendRequestAndWaitForDecision` returns a sealed `ApprovalOutcome` rather than a nullable decision,
+  so `NotPaired`, `PhoneUnreachable`, `RejectedByRelay`, `Expired` and `RelayUnreachable` are no
+  longer indistinguishable from each other.
+- `handoff_status` leads with a plain-language verdict and next step, keeping the JSON as a second
+  content block.
+- `McpServer` is split into a thin process entry point and a testable `McpProtocolServer`.
+- MCP server version is now `2.1.0`.
+- `SETUP_GUIDE.md` rewritten for Steps 3–4, with a per-message troubleshooting table and a command
+  reference. The sample pairing URL previously omitted `token=` and `v=` — exactly the shape the app
+  rejects.
+
 ## [1.5.0] - 2026-09-05
 
 ### Added
