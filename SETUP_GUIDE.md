@@ -217,10 +217,24 @@ handoff://pair?pairId=pair-a1b2c3d4&host=agentapprove-relay.ismamhasanovi.worker
 
 ## Step 4: AI Agent Integration (MCP Configuration)
 
-HandOff implements the **Model Context Protocol (MCP)** stdio interface, enabling seamless integration with any modern AI coding assistant.
+HandOff implements the **Model Context Protocol (MCP)** stdio interface, enabling seamless integration with any modern AI coding assistant (Antigravity IDE, Cursor, Claude Desktop, Claude Code, Roo Code, etc.).
 
-### Auto-Installation (Recommended)
-You can automatically inject HandOff into supported IDEs (Claude Desktop, Cursor, Antigravity) without manually editing JSON configuration files. Simply run:
+### 1. Build the Distribution First
+Before configuring your IDE, compile the standalone distribution libraries once:
+
+```bash
+# Windows PowerShell
+.\gradlew.bat :cli:installDist
+
+# macOS / Linux
+./gradlew :cli:installDist
+```
+This builds all required runtime libraries into `cli/build/install/cli/lib/*`.
+
+---
+
+### Option A: Auto-Installation (Recommended)
+HandOff can automatically detect and inject itself into supported IDE configurations (Antigravity IDE, Claude Desktop, Cursor, and Claude Code). Simply execute:
 
 ```bash
 # Windows
@@ -230,9 +244,35 @@ You can automatically inject HandOff into supported IDEs (Claude Desktop, Cursor
 ./handoff.sh --install
 ```
 
-### Manual Configuration
+---
 
-#### 1. Claude Desktop
+### Option B: Manual Configuration
+
+> [!TIP]
+> **Why Direct `java` Invocation is Recommended:**
+> We strongly recommend launching the MCP server using direct `java -classpath` rather than `.bat` scripts on Windows. Direct JVM invocation eliminates Windows `cmd.exe` child process wrapping, avoiding batch script stdout echo leaks (`@echo off`, CRLF transformations) that can corrupt JSON-RPC 2.0 streaming.
+
+#### 1. Antigravity IDE
+Add the server definition to `~/.gemini/config/mcp_config.json` (or `~/.gemini/antigravity-ide/mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "handoff": {
+      "command": "java",
+      "args": [
+        "-classpath",
+        "C:\\path\\to\\handoff\\cli\\build\\install\\cli\\lib/*",
+        "com.ovi.handoff.MainKt",
+        "--mcp"
+      ]
+    }
+  }
+}
+```
+*(On macOS / Linux, replace backslashes with forward slashes: `"/path/to/handoff/cli/build/install/cli/lib/*"`)*
+
+#### 2. Claude Desktop
 Add HandOff to your `claude_desktop_config.json`:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -241,48 +281,42 @@ Add HandOff to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "handoff": {
-      "command": "c:/Users/USERAS/Desktop/HandOff/handoff/handoff.bat",
-      "args": ["--mcp"],
-      "env": {
-        "HANDOFF_RELAY_HOST": "agentapprove-relay.ismamhasanovi.workers.dev"
-      }
+      "command": "java",
+      "args": [
+        "-classpath",
+        "C:\\path\\to\\handoff\\cli\\build\\install\\cli\\lib/*",
+        "com.ovi.handoff.MainKt",
+        "--mcp"
+      ]
     }
   }
 }
 ```
 
-#### 2. Cursor Composer
+#### 3. Cursor Composer
 Open Cursor Settings &rarr; **Features** &rarr; **MCP Servers** &rarr; **Add New MCP Server**:
 - **Name**: `handoff`
 - **Type**: `command`
-- **Command**: `.\handoff.bat --mcp`
+- **Command**: `java -classpath "C:\path\to\handoff\cli\build\install\cli\lib/*" com.ovi.handoff.MainKt --mcp`
 
-#### 3. Claude Code CLI
+#### 4. Claude Code CLI
 Add HandOff to your Claude Code project configuration:
 ```bash
-claude mcp add handoff -- handoff.bat --mcp
+claude mcp add handoff -- java -classpath "C:/path/to/handoff/cli/build/install/cli/lib/*" com.ovi.handoff.MainKt --mcp
 ```
 
-### 4. Antigravity IDE
-The easiest method is running the auto-installer:
-```bash
-.\handoff.bat --install
-```
-Or manually add the server definition to `~/.gemini/config/mcp_config.json` (or `~/.gemini/antigravity-ide/mcp_config.json`):
-```json
-{
-  "mcpServers": {
-    "handoff": {
-      "command": "C:\\path\\to\\handoff\\cli\\build\\install\\cli\\bin\\cli.bat",
-      "args": ["--mcp"],
-      "env": {
-        "HANDOFF_RELAY_HOST": "agentapprove-relay.ismamhasanovi.workers.dev"
-      }
-    }
-  }
-}
-```
-*(On macOS/Linux, replace `cli.bat` with `./cli/build/install/cli/bin/cli`)*
+---
+
+### Available MCP Tools in HandOff
+
+Once integrated, your coding agents automatically gain access to 4 human-in-the-loop governance tools:
+
+| Tool Name | Purpose | Mobile Experience |
+| :--- | :--- | :--- |
+| **`handoff_approve`** | Request human approval before executing dangerous commands or mutating sensitive files. | Renders high-priority `LiveRequestScreen` with risk badges, justifications, and diff/terminal snippet. |
+| **`handoff_ask_question`** | Prompt the developer with multiple-choice questions or open write-ins to clarify ambiguous requirements. | Renders interactive `QuestionModal` with radio options and write-in feedback. |
+| **`handoff_request_plan_approval`** | Submit multi-phase implementation plans for user review before writing code. | Renders `PlanApprovalCard` with step breakdown and steering notes. |
+| **`handoff_status`** | Query current pairing state, relay connection, and active workspace diagnostics. | Diagnostic query executed in real-time. |
 
 ---
 
