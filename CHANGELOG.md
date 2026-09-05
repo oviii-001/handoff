@@ -5,6 +5,29 @@ All notable changes to the HandOff project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-09-05
+
+### Added
+- **Production-Grade Mobile UI & UX Redesign**:
+  - **Zero-Container Embeddable Snippets**: Introduced `TerminalSnippet(command, cwd)` in `TerminalCard.kt` and `DiffViewerSnippet(filePath, diffContent)` in `DiffViewerCard.kt`, allowing commands and code patches to embed directly inside cards without extra outer container wrappers.
+  - **Unified Request Surface (`UnifiedRequestCard`)**: Consolidated fragmented multi-card stacks in `LiveRequestScreen` into a single cohesive surface with integrated agent identity, risk callout, and embedded payload view.
+  - **Typographical Dashboard Metrics**: Replaced redundant IDE name chips with a clean 3-column stats layout (`Reviewed`, `Pending`, `Zero-Trust Security`) in `ActiveSessionScreen`.
+  - **Zero-Trust E2EE Security Badge**: Added a subtle `🔒 E2EE` cryptographic badge to the hero banner header.
+- **Relay & Protocol Hardening**:
+  - **Cloudflare Worker Hibernation & Testing**: Added Vitest test suite for Cloudflare Worker relay (`relay.spec.ts`) with Durable Object WebSocket hibernation support and structured error responses.
+  - **Shared Wire Protocol & Canonical Crypto**: Added `Canonical.kt`, `Sha256.kt`, and `Protocol.kt` in `:shared` for wire protocol framing, canonical decision signing, and HMAC verification.
+  - **Clean Architecture Domain Expansion**: Added `RequestUseCases.kt` and `SubmitDecisionUseCase.kt` in `:mobile:domain`, paired with hardware-backed `AndroidDecisionSigner.kt`, `RequestVerifier.kt`, and `SecretVault.kt` in `:mobile:data:security`.
+  - **Room Database Schema v3**: Implemented Room migration and schema versioning for resilient local request tracking.
+
+### Changed
+- **Elimination of Nested Cards Anti-Pattern**: Eradicated all cards-inside-cards designs across `LiveRequestScreen`, `ActiveSessionScreen`, `UnpairedHomeScreen`, and `AuditScreen`.
+- **Removal of Duplicate Status & Elements**:
+  - Removed duplicate `OFFLINE`/`CONNECTED` status pills from hero cards, centralizing connection state exclusively in `HomeTopAppBar`.
+  - Removed duplicate agent identity labels and workspace paths between summary cards and code snippet cards.
+  - Removed redundant bottom emergency halt button, keeping the persistent emergency action in the top app bar.
+- **Streamlined Live Action Buttons**: Reorganized authorization actions into an authoritative elevated primary `Approve Once` button alongside clear secondary `Deny` and `Deny with Note` actions.
+- **100% String Localization**: Extracted all user-facing strings across mobile screens into `strings.xml`.
+
 ## [1.4.1] - 2026-09-04
 
 ### Added
