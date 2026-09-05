@@ -5,23 +5,28 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.ovi.handoff.mobile.domain.repository.RelayRepository
-import com.ovi.handoff.shared.model.PermissionDecision
+import com.ovi.handoff.mobile.domain.settings.SettingsRepository
+import com.ovi.handoff.mobile.domain.usecase.SubmitDecisionUseCase
+import com.ovi.handoff.shared.model.requiresStrongAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import timber.log.Timber
-import java.time.Instant
-import java.util.UUID
 
 /**
  * Handles background actions tapped directly from the Android status-bar notification shade
  * (e.g. "Approve Once" or "Deny") without requiring the user to switch into the app.
+ *
+ * All decisions are cryptographically signed with the device's private key via [SubmitDecisionUseCase].
+ * Shade approvals are blocked if biometrics are required by policy.
  */
 public class NotificationActionReceiver : BroadcastReceiver(), KoinComponent {
 
     private val relayRepository: RelayRepository by inject()
+    private val submitDecisionUseCase: SubmitDecisionUseCase by inject()
+    private val settingsRepository: SettingsRepository by inject()
     private val scope = CoroutineScope(Dispatchers.IO)
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -36,15 +41,33 @@ public class NotificationActionReceiver : BroadcastReceiver(), KoinComponent {
         // Send cryptographic decision to Desktop Daemon via Relay
         scope.launch {
             try {
-                val decision = PermissionDecision(
-                    requestId = requestId,
-                    decision = decisionType,
-                    issuedAt = Instant.now().toString(),
-                    nonce = UUID.randomUUID().toString(),
-                    deviceId = "android-device",
-                    signature = ""
+                val request = relayRepository.getRequest(requestId)
+                if (request == null) {
+                    Timber.w("Notification action received for unknown request: $requestId")
+                    return@launch
+                }
+
+                val settings = settingsRepository.current()
+                if (!settings.notificationActionsEnabled) {
+                    Timber.w("Notification actions are disabled in settings; ignoring action $decisionType for $requestId")
+                    return@launch
+                }
+
+                // If user wants to approve from shade, check if biometrics are required
+                if (decisionType == "approve_once") {
+                    val requiresBiometrics = settings.biometricsForShadeActions ||
+                        (settings.biometricsForCritical && request.requiresStrongAuth())
+                    if (requiresBiometrics) {
+                        Timber.i("Shade approval blocked for $requestId: biometrics required. User must open the app.")
+                        return@launch
+                    }
+                }
+
+                val result = submitDecisionUseCase(
+                    pairId = pairId,
+                    request = request,
+                    verdict = decisionType
                 )
-                val result = relayRepository.sendDecision(pairId, decision)
                 if (result.isSuccess) {
                     Timber.d("Notification action $decisionType sent successfully for request $requestId")
                 } else {

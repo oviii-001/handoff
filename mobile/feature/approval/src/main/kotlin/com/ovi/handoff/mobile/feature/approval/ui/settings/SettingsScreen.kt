@@ -69,7 +69,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ovi.handoff.mobile.core.theme.HandoffTheme
 import com.ovi.handoff.mobile.core.theme.MonospaceFont
 import com.ovi.handoff.mobile.core.theme.RiskCriticalColor
 import com.ovi.handoff.mobile.core.theme.RiskLowColor
@@ -111,85 +110,84 @@ fun SettingsScreen(
         true
     }
 
-    HandoffTheme {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.surface,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = stringResource(R.string.settings_title),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    },
-                    navigationIcon = {
-                        if (!isBottomTab) {
-                            IconButton(onClick = onNavigateBack) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                                    contentDescription = stringResource(R.string.settings_nav_back),
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.surface,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(R.string.settings_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                )
-            }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                // 1. NOTIFICATIONS & ACTIONS
-                SettingsSectionHeader(
-                    title = stringResource(R.string.settings_notifications_title),
-                    subtitle = stringResource(R.string.settings_notifications_subtitle)
-                )
-
-                Card(
-                    shape = ShapeExtraLarge,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        SettingToggleRow(
-                            title = stringResource(R.string.settings_push_title),
-                            subtitle = stringResource(R.string.settings_push_subtitle),
-                            icon = Icons.Outlined.Notifications,
-                            checked = uiState.pushNotificationsEnabled,
-                            onCheckedChange = viewModel::togglePushNotifications
-                        )
-
-                        SettingToggleRow(
-                            title = stringResource(R.string.settings_direct_title),
-                            subtitle = stringResource(R.string.settings_direct_subtitle),
-                            icon = Icons.Outlined.NotificationsActive,
-                            checked = uiState.directActionsEnabled,
-                            onCheckedChange = viewModel::toggleDirectActions
-                        )
-
-                        SettingToggleRow(
-                            title = stringResource(R.string.settings_vibration_title),
-                            subtitle = stringResource(R.string.settings_vibration_subtitle),
-                            icon = Icons.Outlined.Vibration,
-                            checked = uiState.vibrationEnabled,
-                            onCheckedChange = viewModel::toggleVibration
-                        )
+                },
+                navigationIcon = {
+                    if (!isBottomTab) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = stringResource(R.string.settings_nav_back),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // 1. NOTIFICATIONS & ACTIONS
+            SettingsSectionHeader(
+                title = stringResource(R.string.settings_notifications_title),
+                subtitle = stringResource(R.string.settings_notifications_subtitle)
+            )
+
+            Card(
+                shape = ShapeExtraLarge,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_push_title),
+                        subtitle = stringResource(R.string.settings_push_subtitle),
+                        icon = Icons.Outlined.Notifications,
+                        checked = uiState.settings.pushNotificationsEnabled,
+                        onCheckedChange = viewModel::togglePushNotifications
+                    )
+
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_direct_title),
+                        subtitle = stringResource(R.string.settings_direct_subtitle),
+                        icon = Icons.Outlined.NotificationsActive,
+                        checked = uiState.settings.notificationActionsEnabled,
+                        onCheckedChange = viewModel::toggleNotificationActions
+                    )
+
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_vibration_title),
+                        subtitle = stringResource(R.string.settings_vibration_subtitle),
+                        icon = Icons.Outlined.Vibration,
+                        checked = uiState.settings.vibrationEnabled,
+                        onCheckedChange = viewModel::toggleVibration
+                    )
                 }
+            }
 
                 // 2. DEVICE PERMISSIONS STATUS HUB
                 SettingsSectionHeader(
@@ -249,8 +247,16 @@ fun SettingsScreen(
                             title = stringResource(R.string.settings_biometrics_title),
                             subtitle = stringResource(R.string.settings_biometrics_subtitle),
                             icon = Icons.Outlined.Fingerprint,
-                            checked = uiState.biometricsRequiredForCritical,
-                            onCheckedChange = viewModel::toggleBiometrics
+                            checked = uiState.settings.biometricsForCritical,
+                            onCheckedChange = viewModel::toggleBiometricsForCritical
+                        )
+
+                        SettingToggleRow(
+                            title = stringResource(R.string.settings_biometric_shade_title),
+                            subtitle = stringResource(R.string.settings_biometric_shade_subtitle),
+                            icon = Icons.Outlined.Fingerprint,
+                            checked = uiState.settings.biometricsForShadeActions,
+                            onCheckedChange = viewModel::toggleBiometricsForShadeActions
                         )
 
                         Row(
@@ -490,7 +496,6 @@ fun SettingsScreen(
             )
         }
     }
-}
 
 @Composable
 private fun SettingsSectionHeader(title: String, subtitle: String) {

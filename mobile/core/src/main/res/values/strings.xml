@@ -2,6 +2,10 @@
 <resources>
     <string name="status_relay_connected">Relay Connected</string>
     <string name="status_reconnecting">Reconnecting…</string>
+    <string name="status_relay_offline">Offline</string>
+    <string name="diff_show_all">Show all %1$d lines</string>
+    <string name="diff_truncated">Showing %1$d of %2$d lines</string>
+    <string name="diff_collapsed_context">%1$d unchanged lines</string>
     <string name="plan_approval_tag">Plan Approval</string>
     <string name="plan_title_prefix">Execution Plan</string>
     <string name="plan_steps_count">%1$d steps</string>

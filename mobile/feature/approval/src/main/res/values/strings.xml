@@ -44,8 +44,8 @@
     <string name="settings_security_subtitle">Cryptographic keys and zero-trust signing</string>
     <string name="settings_biometrics_title">Biometrics for Critical Actions</string>
     <string name="settings_biometrics_subtitle">Require biometric authentication for database writes and sensitive commands</string>
-    <string name="settings_signing_title">Zero-Trust Signing</string>
-    <string name="settings_signing_subtitle">Ed25519 hardware-backed keypair</string>
+    <string name="settings_signing_title">Decision Signing</string>
+    <string name="settings_signing_subtitle">Hardware-backed EC P-256 key, held in this device\'s secure keystore</string>
     <string name="settings_enforced">Enforced</string>
     <string name="settings_notifications_title">Notifications</string>
     <string name="settings_notifications_subtitle">Alerting and lock-screen authorization</string>
@@ -74,9 +74,11 @@
     <string name="awaiting_agent_title">Awaiting Agent Activity</string>
     <string name="awaiting_agent_subtitle">Connect your IDE or CLI agent (Cursor, Codex, Antigravity, etc.) to start receiving authorization requests.</string>
     <string name="metric_reviewed">Reviewed</string>
+    <string name="metric_pending">Pending</string>
     <string name="metric_connected_ide">IDE</string>
     <string name="metric_standby">Standby</string>
     <string name="metric_security">Security</string>
+    <string name="security_e2ee_badge">E2EE</string>
     <string name="nav_home">Home</string>
     <string name="nav_audit">Audit Log</string>
     <string name="nav_settings">Settings</string>
@@ -128,15 +130,55 @@
     <string name="guide_unpaired_section_header">QUICK SETUP GUIDE</string>
     <string name="manual_connection_section_header">MANUAL CONNECTION</string>
     <string name="action_paste_clipboard">Paste from clipboard</string>
-    <string name="security_e2e_explainer">End-to-End Cryptographic Security: All authorizations are signed locally using hardware-backed Ed25519 keys.</string>
+    <string name="security_e2e_explainer">Every decision you make is signed on this device with a hardware-backed key, and your desktop refuses any decision it cannot verify.</string>
     <string name="clip_pair_id_label">Pair ID</string>
     <string name="badge_single_request">1</string>
     <string name="audit_title">Audit Trail</string>
-    <string name="audit_subtitle">Cryptographic immutable log of agent actions</string>
+    <string name="audit_subtitle">Every request and what you decided</string>
     <string name="audit_clear_btn">Clear Audit Log</string>
     <string name="audit_clear_dialog_title">Clear Audit Log?</string>
     <string name="audit_clear_dialog_msg">This will permanently remove all resolved authorization events and decision records from this device.</string>
     <string name="audit_clear_confirm">Clear History</string>
     <string name="audit_events_count">%d events logged</string>
+
+    <!-- Connection state. The status pill used to be hardcoded to "connected". -->
+    <string name="status_relay_offline">OFFLINE</string>
+    <string name="status_relay_connecting">CONNECTING</string>
+    <string name="settings_connection_title">Relay Connection</string>
+    <string name="connection_offline_banner">Not connected to your desktop. Decisions you make will be sent when the connection returns.</string>
+    <string name="connection_connecting_banner">Reconnecting to your desktop…</string>
+
+    <!-- Request queue. Only one pending request used to be reachable. -->
+    <string name="queue_title">Waiting for you</string>
+    <string name="queue_position">%1$d of %2$d</string>
+    <string name="queue_next">Next request</string>
+    <string name="queue_previous">Previous request</string>
+    <string name="queue_pending_count">%d waiting</string>
+
+    <!-- Expiry. expiresAt was previously sent by every producer and read by nobody. -->
+    <string name="expires_in">%s left</string>
+    <string name="expires_soon">Expiring now</string>
+    <string name="expired_title">This request expired</string>
+    <string name="expired_body">Your agent stopped waiting, so nothing was authorized.</string>
+
+    <!-- Audit outcomes. Every row used to render as a green tick reading "RECORDED". -->
+    <string name="outcome_approved">APPROVED</string>
+    <string name="outcome_denied">DENIED</string>
+    <string name="outcome_expired">EXPIRED</string>
+    <string name="outcome_cancelled">HALTED</string>
+    <string name="outcome_pending">WAITING</string>
+
+    <string name="diff_show_all">Show all %d lines</string>
+    <string name="diff_truncated">Showing the first %1$d of %2$d lines</string>
+
+    <string name="settings_biometric_shade_title">Biometrics for shade actions</string>
+    <string name="settings_biometric_shade_subtitle">Also confirm with biometrics when approving from the notification shade</string>
+    <string name="settings_auto_deny_title">Auto-deny after</string>
+    <string name="settings_auto_deny_off">Use the request\'s own deadline</string>
+    <string name="settings_auto_deny_minutes">%d minutes</string>
+
+    <string name="a11y_risk_level">Risk level: %s</string>
+    <string name="a11y_approve_request">Approve this request</string>
+    <string name="a11y_deny_request">Deny this request</string>
 </resources>
 

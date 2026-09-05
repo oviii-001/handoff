@@ -1,103 +1,102 @@
 package com.ovi.handoff.mobile.core.security
 
-import android.app.Activity
-import android.hardware.biometrics.BiometricPrompt
-import android.hardware.biometrics.BiometricManager
-import android.os.Build
-import android.os.CancellationSignal
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import androidx.annotation.RequiresApi
-import java.security.KeyStore
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import android.security.keystore.UserNotAuthenticatedException
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 
+/**
+ * Device-owner confirmation before a high-risk approval.
+ *
+ * Rewritten around `androidx.biometric` for two reasons. The platform `BiometricPrompt` path it used
+ * needed `setUserAuthenticationParameters`, which is API 30, while this app supports API 29, so on the
+ * oldest supported devices the old helper threw and fell through to its generic catch. And the caller
+ * previously ended with `?: onApprove()`, meaning that whenever the composition context was not an
+ * Activity, a critical action was approved with no authentication at all.
+ *
+ * [authenticate] therefore never falls back to success. If the device cannot authenticate, that is
+ * reported through [onUnavailable] and the decision is the caller's to make explicitly.
+ */
 public object BiometricAuthHelper {
-    private const val KEY_NAME = "handoff_biometric_key"
 
-    @RequiresApi(Build.VERSION_CODES.R)
-    private fun getOrCreateKey(): SecretKey {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore")
-        keyStore.load(null)
+    private const val ALLOWED_AUTHENTICATORS: Int =
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
-        if (!keyStore.containsAlias(KEY_NAME)) {
-            val keyGenerator = KeyGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore"
-            )
-            val builder = KeyGenParameterSpec.Builder(
-                KEY_NAME,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
-                .setUserAuthenticationRequired(true)
-                .setUserAuthenticationParameters(300, KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL)
-            
-            keyGenerator.init(builder.build())
-            return keyGenerator.generateKey()
-        }
-        return keyStore.getKey(KEY_NAME, null) as SecretKey
+    public enum class Availability {
+        AVAILABLE,
+
+        /** Hardware exists but nothing is enrolled, so the user can fix this in settings. */
+        NOT_ENROLLED,
+
+        /** No usable hardware or credential on this device. */
+        UNAVAILABLE
     }
 
-    @RequiresApi(Build.VERSION_CODES.R)
-    public fun authenticate(
-        activity: Activity,
-        title: String = "Authorize Critical Action",
-        subtitle: String = "Fingerprint or device lock confirmation required",
-        onSuccess: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        try {
-            val key = getOrCreateKey()
-            val cipher = Cipher.getInstance("${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_CBC}/${KeyProperties.ENCRYPTION_PADDING_PKCS7}")
-            
-            // Try to initialize cipher. If the 300-second window is active, this succeeds immediately!
-            cipher.init(Cipher.ENCRYPT_MODE, key)
-            
-            // We are within the 5-minute cache window. Success!
-            onSuccess()
-            return
-        } catch (e: UserNotAuthenticatedException) {
-            // Cache expired or not authenticated yet. Need to prompt.
-        } catch (e: Exception) {
-            // Key might be invalidated if biometrics changed. Delete and retry.
-            try {
-                val keyStore = KeyStore.getInstance("AndroidKeyStore")
-                keyStore.load(null)
-                keyStore.deleteEntry(KEY_NAME)
-            } catch (ignored: Exception) {}
+    public fun availability(context: android.content.Context): Availability =
+        when (BiometricManager.from(context).canAuthenticate(ALLOWED_AUTHENTICATORS)) {
+            BiometricManager.BIOMETRIC_SUCCESS -> Availability.AVAILABLE
+            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> Availability.NOT_ENROLLED
+            else -> Availability.UNAVAILABLE
         }
 
-        val cancellationSignal = CancellationSignal()
-        val executor = activity.mainExecutor
+    /**
+     * Prompts for biometric or device-credential confirmation.
+     *
+     * @param onUnavailable called when this device cannot prompt at all. Never treated as success.
+     */
+    public fun authenticate(
+        activity: FragmentActivity,
+        title: String,
+        subtitle: String,
+        onSuccess: () -> Unit,
+        onFailure: (String) -> Unit,
+        onUnavailable: (String) -> Unit
+    ) {
+        when (availability(activity)) {
+            Availability.NOT_ENROLLED -> {
+                onUnavailable("No fingerprint, face, or device lock is set up on this phone.")
+                return
+            }
+            Availability.UNAVAILABLE -> {
+                onUnavailable("This device cannot confirm your identity.")
+                return
+            }
+            Availability.AVAILABLE -> Unit
+        }
 
-        val prompt = BiometricPrompt.Builder(activity)
-            .setTitle(title)
-            .setSubtitle(subtitle)
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-            .build()
-
-        prompt.authenticate(
-            cancellationSignal,
-            executor,
+        val prompt = BiometricPrompt(
+            activity,
+            ContextCompat.getMainExecutor(activity),
             object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
-                    super.onAuthenticationSucceeded(result)
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     onSuccess()
                 }
 
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
-                    super.onAuthenticationError(errorCode, errString)
-                    onError(errString?.toString() ?: "Authentication error")
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    // A user-initiated cancel is not a failure worth surfacing as an error.
+                    if (errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                        errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
+                        errorCode == BiometricPrompt.ERROR_CANCELED
+                    ) {
+                        onFailure("")
+                    } else {
+                        onFailure(errString.toString())
+                    }
                 }
 
                 override fun onAuthenticationFailed() {
-                    super.onAuthenticationFailed()
-                    onError("Authentication failed")
+                    // Not terminal: the prompt stays open for another attempt.
                 }
             }
+        )
+
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setSubtitle(subtitle)
+                .setAllowedAuthenticators(ALLOWED_AUTHENTICATORS)
+                .setConfirmationRequired(true)
+                .build()
         )
     }
 }

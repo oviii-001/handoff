@@ -53,7 +53,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.ovi.handoff.mobile.core.theme.HandoffTheme
 import com.ovi.handoff.mobile.core.theme.RiskCriticalColor
 import com.ovi.handoff.mobile.core.theme.ShapeExtraLarge
 import com.ovi.handoff.mobile.core.theme.ShapeFull
@@ -84,155 +83,159 @@ fun ApprovalScreen(
         }
     }
 
-    val activeProjectOrWorkspace: String? = uiState.activeProjectOrWorkspace
-
     var showClearAuditDialog by remember { mutableStateOf(false) }
 
-    HandoffTheme {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = MaterialTheme.colorScheme.surface,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            bottomBar = {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    tonalElevation = 3.dp
-                ) {
-                    // Home
-                    NavigationBarItem(
-                        selected = uiState.selectedTab == ApprovalTab.HOME,
-                        onClick = { viewModel.switchTab(ApprovalTab.HOME) },
-                        icon = {
-                            BadgedBox(
-                                badge = {
-                                    if (uiState.displayedRequest != null) {
-                                        Badge {
-                                            Text(stringResource(R.string.badge_single_request))
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = if (uiState.selectedTab == ApprovalTab.HOME) {
-                                        Icons.Filled.Shield
-                                    } else {
-                                        Icons.Outlined.Shield
-                                    },
-                                    contentDescription = stringResource(R.string.nav_home)
-                                )
-                            }
-                        },
-                        label = { Text(stringResource(R.string.nav_home)) }
-                    )
-
-                    // Audit Log
-                    NavigationBarItem(
-                        selected = uiState.selectedTab == ApprovalTab.AUDIT,
-                        onClick = { viewModel.switchTab(ApprovalTab.AUDIT) },
-                        icon = {
-                            BadgedBox(
-                                badge = {
-                                    if (uiState.historyRequests.isNotEmpty()) {
-                                        Badge {
-                                            Text("${uiState.historyRequests.size}")
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = if (uiState.selectedTab == ApprovalTab.AUDIT) {
-                                        Icons.AutoMirrored.Filled.ReceiptLong
-                                    } else {
-                                        Icons.AutoMirrored.Outlined.ReceiptLong
-                                    },
-                                    contentDescription = stringResource(R.string.nav_audit)
-                                )
-                            }
-                        },
-                        label = { Text(stringResource(R.string.nav_audit)) }
-                    )
-
-                    // Settings
-                    NavigationBarItem(
-                        selected = uiState.selectedTab == ApprovalTab.SETTINGS,
-                        onClick = { viewModel.switchTab(ApprovalTab.SETTINGS) },
-                        icon = {
-                            Icon(
-                                imageVector = if (uiState.selectedTab == ApprovalTab.SETTINGS) {
-                                    Icons.Filled.Settings
-                                } else {
-                                    Icons.Outlined.Settings
-                                },
-                                contentDescription = stringResource(R.string.nav_settings)
-                            )
-                        },
-                        label = { Text(stringResource(R.string.nav_settings)) }
-                    )
-                }
-            }
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = paddingValues.calculateBottomPadding())
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.surface,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 3.dp
             ) {
-                AnimatedContent(
-                    targetState = uiState.selectedTab,
-                    transitionSpec = {
-                        fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)) +
-                            scaleIn(initialScale = 0.98f, animationSpec = tween(220, easing = LinearOutSlowInEasing)) togetherWith
-                            fadeOut(animationSpec = tween(180, easing = FastOutLinearInEasing)) +
-                            scaleOut(targetScale = 0.98f, animationSpec = tween(180, easing = FastOutLinearInEasing))
-                    },
-                    label = "tab_content_animation"
-                ) { tab ->
-                    when (tab) {
-                        ApprovalTab.HOME -> {
-                            HomeScreen(
-                                uiState = uiState,
-                                pairId = pairId,
-                                activeProjectOrWorkspace = activeProjectOrWorkspace,
-                                viewModel = viewModel,
-                                onNavigateToPairingQr = onNavigateToPairingQr,
-                                onShowHaltDialog = { showHaltDialog = true }
-                            )
-                        }
-                        ApprovalTab.AUDIT -> {
-                            Scaffold(
-                                topBar = {
-                                    AuditTopAppBar(
-                                        hasRequests = uiState.historyRequests.isNotEmpty(),
-                                        requestCount = uiState.historyRequests.size,
-                                        onClearHistory = { showClearAuditDialog = true }
-                                    )
-                                },
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ) { auditPadding ->
-                                AuditScreen(
-                                    requests = uiState.historyRequests,
-                                    searchQuery = uiState.searchQuery,
-                                    filterRisk = uiState.filterRisk,
-                                    selectedAgentId = uiState.selectedAgentFilter,
-                                    onSearchChanged = viewModel::setSearchQuery,
-                                    onFilterRiskChanged = viewModel::setFilterRisk,
-                                    modifier = Modifier.padding(auditPadding)
-                                )
-                            }
-                        }
-                        ApprovalTab.SETTINGS -> {
-                            SettingsScreen(
-                                pairId = uiState.pairId ?: pairId ?: "",
-                                isBottomTab = true,
-                                onUnpaired = {
-                                    viewModel.unpair()
-                                    viewModel.switchTab(ApprovalTab.HOME)
+                // Home
+                NavigationBarItem(
+                    selected = uiState.selectedTab == ApprovalTab.HOME,
+                    onClick = { viewModel.switchTab(ApprovalTab.HOME) },
+                    icon = {
+                        BadgedBox(
+                            badge = {
+                                if (uiState.displayedRequest != null) {
+                                    Badge {
+                                        Text(stringResource(R.string.badge_single_request))
+                                    }
                                 }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.selectedTab == ApprovalTab.HOME) {
+                                    Icons.Filled.Shield
+                                } else {
+                                    Icons.Outlined.Shield
+                                },
+                                contentDescription = stringResource(R.string.nav_home)
                             )
                         }
+                    },
+                    label = { Text(stringResource(R.string.nav_home)) }
+                )
+
+                // Audit Log
+                NavigationBarItem(
+                    selected = uiState.selectedTab == ApprovalTab.AUDIT,
+                    onClick = { viewModel.switchTab(ApprovalTab.AUDIT) },
+                    icon = {
+                        BadgedBox(
+                            badge = {
+                                if (uiState.filteredAuditEntries.isNotEmpty()) {
+                                    Badge {
+                                        Text("${uiState.filteredAuditEntries.size}")
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.selectedTab == ApprovalTab.AUDIT) {
+                                    Icons.AutoMirrored.Filled.ReceiptLong
+                                } else {
+                                    Icons.AutoMirrored.Outlined.ReceiptLong
+                                },
+                                contentDescription = stringResource(R.string.nav_audit)
+                            )
+                        }
+                    },
+                    label = { Text(stringResource(R.string.nav_audit)) }
+                )
+
+                // Settings
+                NavigationBarItem(
+                    selected = uiState.selectedTab == ApprovalTab.SETTINGS,
+                    onClick = { viewModel.switchTab(ApprovalTab.SETTINGS) },
+                    icon = {
+                        Icon(
+                            imageVector = if (uiState.selectedTab == ApprovalTab.SETTINGS) {
+                                Icons.Filled.Settings
+                            } else {
+                                Icons.Outlined.Settings
+                            },
+                            contentDescription = stringResource(R.string.nav_settings)
+                        )
+                    },
+                    label = { Text(stringResource(R.string.nav_settings)) }
+                )
+            }
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = paddingValues.calculateBottomPadding())
+        ) {
+            AnimatedContent(
+                targetState = uiState.selectedTab,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)) +
+                        scaleIn(initialScale = 0.98f, animationSpec = tween(220, easing = LinearOutSlowInEasing)) togetherWith
+                        fadeOut(animationSpec = tween(180, easing = FastOutLinearInEasing)) +
+                        scaleOut(targetScale = 0.98f, animationSpec = tween(180, easing = FastOutLinearInEasing))
+                },
+                label = "tab_content_animation"
+            ) { tab ->
+                when (tab) {
+                    ApprovalTab.HOME -> {
+                        HomeScreen(
+                            uiState = uiState,
+                            onPairWithCode = viewModel::pairWithCode,
+                            onNavigateToPairingQr = onNavigateToPairingQr,
+                            onNavigateToAuditLog = { viewModel.switchTab(ApprovalTab.AUDIT) },
+                            onShowHaltDialog = { showHaltDialog = true },
+                            onApprove = viewModel::onApprove,
+                            onReject = viewModel::onReject,
+                            onSubmitQuestion = viewModel::onSubmitQuestion,
+                            onProceedPlan = viewModel::onProceedPlan,
+                            onRequestPlanChanges = viewModel::onRequestPlanChanges,
+                            onShowPrevious = viewModel::showPreviousRequest,
+                            onShowNext = viewModel::showNextRequest,
+                            onBlocked = viewModel::blockCurrentRequest
+                        )
+                    }
+                    ApprovalTab.AUDIT -> {
+                        Scaffold(
+                            topBar = {
+                                AuditTopAppBar(
+                                    hasRequests = uiState.filteredAuditEntries.isNotEmpty(),
+                                    requestCount = uiState.filteredAuditEntries.size,
+                                    onClearHistory = { showClearAuditDialog = true }
+                                )
+                            },
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ) { auditPadding ->
+                            AuditScreen(
+                                entries = uiState.filteredAuditEntries,
+                                searchQuery = uiState.searchQuery,
+                                filterRisk = uiState.filterRisk,
+                                selectedAgentId = uiState.selectedAgentFilter,
+                                onSearchChanged = viewModel::setSearchQuery,
+                                onFilterRiskChanged = viewModel::setFilterRisk,
+                                modifier = Modifier.padding(auditPadding)
+                            )
+                        }
+                    }
+                    ApprovalTab.SETTINGS -> {
+                        SettingsScreen(
+                            pairId = uiState.pairId ?: pairId ?: "",
+                            isBottomTab = true,
+                            onUnpaired = {
+                                viewModel.unpair()
+                                viewModel.switchTab(ApprovalTab.HOME)
+                            }
+                        )
                     }
                 }
             }
         }
+    }
 
         // Audit Log Clear Confirmation Dialog
         if (showClearAuditDialog) {
@@ -346,7 +349,6 @@ fun ApprovalScreen(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
             )
         }
-    }
 }
 
 

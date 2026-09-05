@@ -40,31 +40,21 @@ import com.ovi.handoff.mobile.core.theme.ShapeFull
 import com.ovi.handoff.mobile.core.theme.ShapeLarge
 import com.ovi.handoff.mobile.core.theme.ShapeMedium
 import com.ovi.handoff.mobile.feature.approval.R
-import com.ovi.handoff.mobile.feature.approval.ui.model.PermissionRequestUiModel
+import com.ovi.handoff.mobile.core.theme.RiskLowColor
+import com.ovi.handoff.mobile.feature.approval.ui.model.AuditEntryUiModel
+import com.ovi.handoff.mobile.feature.approval.ui.model.AuditOutcome
+import kotlinx.collections.immutable.ImmutableList
 
 @Composable
 fun AuditScreen(
     modifier: Modifier = Modifier,
-    requests: List<PermissionRequestUiModel>,
+    entries: ImmutableList<AuditEntryUiModel>,
     searchQuery: String,
     filterRisk: String?,
     selectedAgentId: String? = null,
     onSearchChanged: (String) -> Unit,
     onFilterRiskChanged: (String?) -> Unit
 ) {
-    val filtered = requests.filter { req ->
-        val matchesQuery = searchQuery.isBlank() ||
-                (req.command?.contains(searchQuery, ignoreCase = true) == true) ||
-                (req.agentName.contains(searchQuery, ignoreCase = true)) ||
-                (req.permissionType.contains(searchQuery, ignoreCase = true)) ||
-                (req.description?.contains(searchQuery, ignoreCase = true) == true)
-
-        val matchesRisk = filterRisk == null || req.riskLevel.equals(filterRisk, ignoreCase = true)
-
-        val matchesAgent = selectedAgentId == null || (req.agentId.equals(selectedAgentId, ignoreCase = true))
-
-        matchesQuery && matchesRisk && matchesAgent
-    }
 
     Column(
         modifier = modifier
@@ -143,7 +133,7 @@ fun AuditScreen(
         }
 
         // List or Empty View
-        if (filtered.isEmpty()) {
+        if (entries.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -163,7 +153,36 @@ fun AuditScreen(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(filtered, key = { it.id }) { req ->
+                items(entries, key = { it.id }) { entry ->
+                    val req = entry.request
+                    val (badgeText, badgeColor, badgeBg) = when (entry.outcome) {
+                        AuditOutcome.APPROVED -> Triple(
+                            stringResource(R.string.outcome_approved),
+                            RiskLowColor,
+                            RiskLowColor.copy(alpha = 0.15f)
+                        )
+                        AuditOutcome.DENIED -> Triple(
+                            stringResource(R.string.outcome_denied),
+                            MaterialTheme.colorScheme.error,
+                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                        )
+                        AuditOutcome.EXPIRED -> Triple(
+                            stringResource(R.string.outcome_expired),
+                            MaterialTheme.colorScheme.outline,
+                            MaterialTheme.colorScheme.surfaceContainerHighest
+                        )
+                        AuditOutcome.CANCELLED -> Triple(
+                            stringResource(R.string.outcome_cancelled),
+                            MaterialTheme.colorScheme.tertiary,
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+                        )
+                        AuditOutcome.PENDING -> Triple(
+                            stringResource(R.string.outcome_pending),
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        )
+                    }
+
                     Card(
                         shape = ShapeLarge,
                         colors = CardDefaults.cardColors(
@@ -182,7 +201,8 @@ fun AuditScreen(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.weight(1f, fill = false)
                                 ) {
                                     AgentBadge(
                                         agentId = req.agentId,
@@ -217,7 +237,26 @@ fun AuditScreen(
                                         }
                                     }
                                 }
-                                RiskBadge(level = req.riskLevel)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(ShapeFull)
+                                            .background(badgeBg)
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = badgeText,
+                                            color = badgeColor,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = MonospaceFont
+                                        )
+                                    }
+                                    RiskBadge(level = req.riskLevel)
+                                }
                             }
 
                             Text(
@@ -263,18 +302,11 @@ fun AuditScreen(
                                 }
                             }
 
-                            val projectOrWorkspace = req.projectOrWorkspace ?: ""
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.End,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = projectOrWorkspace,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 11.sp,
-                                    fontFamily = MonospaceFont
-                                )
                                 Text(
                                     text = req.formattedTimestamp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,

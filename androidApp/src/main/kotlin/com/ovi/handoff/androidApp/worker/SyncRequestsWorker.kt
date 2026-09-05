@@ -22,7 +22,7 @@ class SyncRequestsWorker(
             return Result.failure()
         }
 
-        val result = relayRepository.syncRequests(pairId)
+        val result = relayRepository.connect(pairId)
         return if (result.isSuccess) {
             Result.success()
         } else {

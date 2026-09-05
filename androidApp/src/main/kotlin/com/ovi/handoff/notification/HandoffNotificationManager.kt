@@ -125,16 +125,26 @@ public class HandoffNotificationManager(
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setAutoCancel(true)
                 .setContentIntent(contentPendingIntent)
-                .addAction(
+
+            val ttl = (request.expiresAtEpochMs ?: 0L) - System.currentTimeMillis()
+            if (ttl > 0) {
+                builder.setTimeoutAfter(ttl)
+            }
+
+            // Questions and plans cannot be blindly approved from the notification shade
+            if (request.question == null && request.plan == null) {
+                builder.addAction(
                     android.R.drawable.ic_media_play,
                     "Approve Once",
                     approvePendingIntent
                 )
-                .addAction(
-                    android.R.drawable.ic_menu_close_clear_cancel,
-                    "Deny",
-                    denyPendingIntent
-                )
+            }
+
+            builder.addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "Deny",
+                denyPendingIntent
+            )
 
             notificationManager.notify(request.id.hashCode(), builder.build())
             Timber.d("Posted authorization notification for request ${request.id}")

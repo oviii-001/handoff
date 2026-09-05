@@ -23,15 +23,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Hub
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,32 +47,41 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ovi.handoff.mobile.core.components.StatusPill
 import com.ovi.handoff.mobile.core.theme.MonospaceFont
 import com.ovi.handoff.mobile.core.theme.RiskLowColor
 import com.ovi.handoff.mobile.core.theme.ShapeExtraLarge
 import com.ovi.handoff.mobile.core.theme.ShapeFull
 import com.ovi.handoff.mobile.core.theme.ShapeLarge
 import com.ovi.handoff.mobile.core.theme.ShapeMedium
+import com.ovi.handoff.mobile.domain.repository.ConnectionState
 import com.ovi.handoff.mobile.feature.approval.R
+import com.ovi.handoff.mobile.feature.approval.ui.model.AuditEntryUiModel
+import com.ovi.handoff.mobile.feature.approval.ui.model.AuditOutcome
 import com.ovi.handoff.mobile.feature.approval.ui.model.ConnectedAgentUiModel
-import com.ovi.handoff.mobile.feature.approval.ui.model.PermissionRequestUiModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
+/**
+ * Production-grade Active Session Dashboard.
+ *
+ * Clean visual hierarchy without nested cards or duplicate status indicators.
+ * Real-time connection status and emergency halt are already provided in the top bar.
+ */
 @Composable
 fun ActiveSessionScreen(
     modifier: Modifier = Modifier,
     pairId: String,
-    historyCount: Int,
-    connectedAgent: ConnectedAgentUiModel?,
-    workspaceName: String?,
-    recentActivity: List<PermissionRequestUiModel> = emptyList(),
+    connectionState: ConnectionState = ConnectionState.CONNECTED,
+    reviewedCount: Int = 0,
+    pendingCount: Int = 0,
+    connectedAgent: ConnectedAgentUiModel? = null,
+    workspaceLabel: String? = null,
+    recentActivity: ImmutableList<AuditEntryUiModel> = persistentListOf(),
     onNavigateToAuditLog: () -> Unit = {},
     onHaltAgent: () -> Unit
 ) {
@@ -83,164 +95,13 @@ fun ActiveSessionScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Main Standby Hero Card
-        Card(
-            shape = ShapeExtraLarge,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    StatusPill(isConnected = true, latencyMs = null)
-
-                    Box(
-                        modifier = Modifier
-                            .clip(ShapeFull)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.pair_prefix, pairId.take(10)),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
-                            fontFamily = MonospaceFont,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                Text(
-                    text = stringResource(R.string.idle_title),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = stringResource(R.string.idle_subtitle),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                    lineHeight = 19.sp
-                )
-
-                // Stats Chips Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    MetricChip(
-                        label = stringResource(R.string.metric_reviewed),
-                        value = "$historyCount",
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricChip(
-                        label = stringResource(R.string.metric_connected_ide),
-                        value = connectedAgent?.name ?: stringResource(R.string.metric_standby),
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricChip(
-                        label = stringResource(R.string.metric_security),
-                        value = stringResource(R.string.status_zero_trust),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
-        // Show Exactly Which IDE the User Connected
-        if (connectedAgent != null) {
-            Text(
-                text = stringResource(R.string.connected_ide_title),
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
-
-            val displayName = connectedAgent.name
-            val defaultWorkspace = stringResource(R.string.active_workspace_default)
-            val defaultSession = stringResource(R.string.active_workspace_session)
-            val subtitle = if (!connectedAgent.version.isNullOrBlank()) {
-                "v${connectedAgent.version} • ${workspaceName ?: defaultWorkspace}"
-            } else {
-                workspaceName ?: defaultSession
-            }
-
-            AgentMeshCard(
-                name = displayName,
-                author = subtitle,
-                status = stringResource(R.string.status_connected_active),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                onContainerColor = MaterialTheme.colorScheme.onSurface
-            )
-        } else {
-            // Awaiting IDE Agent connection
-            Text(
-                text = stringResource(R.string.connected_session_title),
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
-
-            Card(
-                shape = ShapeLarge,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(ShapeMedium)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Hub,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.awaiting_agent_title),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = stringResource(R.string.awaiting_agent_subtitle),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
-            }
-        }
+        // Unified Dashboard Hero Banner (Single Surface)
+        DashboardHeroBanner(
+            connectedAgent = connectedAgent,
+            workspaceLabel = workspaceLabel,
+            reviewedCount = reviewedCount,
+            pendingCount = pendingCount
+        )
 
         // Collapsible Interactive User Guide
         Card(
@@ -323,7 +184,7 @@ fun ActiveSessionScreen(
             }
         }
 
-        // Recent Activity Preview Section
+        // Recent Activity Section (Single List Container, NO nested individual cards)
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -360,135 +221,184 @@ fun ActiveSessionScreen(
                 }
             }
 
-            if (recentActivity.isEmpty()) {
-                Card(
-                    shape = ShapeLarge,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+            Card(
+                shape = ShapeExtraLarge,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (recentActivity.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
+                            .padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = stringResource(R.string.home_no_recent_activity),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            } else {
-                recentActivity.forEach { request ->
-                    RecentActivityItem(request = request)
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        recentActivity.forEachIndexed { index, entry ->
+                            RecentActivityRow(entry = entry)
+                            if (index < recentActivity.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    }
                 }
             }
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Emergency Halt Button
-        Button(
-            onClick = onHaltAgent,
-            shape = ShapeFull,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Warning,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.halt_agent),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
-            )
         }
     }
 }
 
+/**
+ * Unified Dashboard Hero Banner.
+ * Shows connected IDE agent details, session state, and key metrics in one cohesive surface.
+ */
 @Composable
-private fun RecentActivityItem(
-    request: PermissionRequestUiModel,
+private fun DashboardHeroBanner(
+    connectedAgent: ConnectedAgentUiModel?,
+    workspaceLabel: String?,
+    reviewedCount: Int,
+    pendingCount: Int,
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = ShapeLarge,
+        shape = ShapeExtraLarge,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
         modifier = modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Agent Identity Header
             Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(ShapeFull)
-                        .background(RiskLowColor.copy(alpha = 0.2f)),
+                        .size(44.dp)
+                        .clip(ShapeMedium)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Check,
+                        imageVector = if (connectedAgent != null) Icons.Outlined.Shield else Icons.Outlined.Hub,
                         contentDescription = null,
-                        tint = RiskLowColor,
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    val title = request.command
-                        ?: request.target
-                        ?: request.description
-                        ?: request.permissionType
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     Text(
-                        text = title.take(35),
+                        text = connectedAgent?.name ?: stringResource(R.string.idle_title),
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp,
-                        fontFamily = MonospaceFont,
-                        maxLines = 1
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Folder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = workspaceLabel ?: stringResource(R.string.active_workspace_default),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Zero-trust cryptographic security badge (no duplicate OFFLINE/CONNECTED text)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .clip(ShapeFull)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Lock,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(12.dp)
                     )
                     Text(
-                        text = "${request.agentName} • ${request.riskLevel.uppercase()}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
+                        text = stringResource(R.string.security_e2ee_badge),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .clip(ShapeFull)
-                    .background(RiskLowColor.copy(alpha = 0.15f))
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            Text(
+                text = stringResource(R.string.idle_subtitle),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+                lineHeight = 20.sp
+            )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f))
+
+            // Typographical Metrics Row (NO chunky mini-cards/chips)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = stringResource(R.string.status_recorded),
-                    color = RiskLowColor,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = MonospaceFont
+                MetricColumn(
+                    label = stringResource(R.string.metric_reviewed),
+                    value = "$reviewedCount"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(28.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                )
+
+                MetricColumn(
+                    label = stringResource(R.string.metric_pending),
+                    value = "$pendingCount"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(28.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                )
+
+                MetricColumn(
+                    label = stringResource(R.string.metric_security),
+                    value = stringResource(R.string.status_zero_trust)
                 )
             }
         }
@@ -496,114 +406,136 @@ private fun RecentActivityItem(
 }
 
 @Composable
-private fun MetricChip(
+private fun MetricColumn(
     label: String,
     value: String,
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier
-            .clip(ShapeLarge)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(vertical = 10.dp, horizontal = 10.dp),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Text(
             text = value,
             color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
         )
         Text(
             text = label,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp
+            style = MaterialTheme.typography.labelSmall
         )
     }
 }
 
+/**
+ * Clean List Row for Recent Activity.
+ * Avoids wrapping in a separate Card.
+ */
 @Composable
-private fun AgentMeshCard(
-    modifier: Modifier = Modifier,
-    name: String,
-    author: String,
-    status: String,
-    containerColor: Color,
-    onContainerColor: Color,
-    icon: ImageVector? = null
+private fun RecentActivityRow(
+    entry: AuditEntryUiModel,
+    modifier: Modifier = Modifier
 ) {
-    Card(
-        shape = ShapeLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ),
-        modifier = modifier.fillMaxWidth()
+    val request = entry.request
+    val (badgeText, badgeColor, badgeBg) = when (entry.outcome) {
+        AuditOutcome.APPROVED -> Triple(
+            stringResource(R.string.outcome_approved),
+            RiskLowColor,
+            RiskLowColor.copy(alpha = 0.15f)
+        )
+        AuditOutcome.DENIED -> Triple(
+            stringResource(R.string.outcome_denied),
+            MaterialTheme.colorScheme.error,
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+        )
+        AuditOutcome.EXPIRED -> Triple(
+            stringResource(R.string.outcome_expired),
+            MaterialTheme.colorScheme.outline,
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        )
+        AuditOutcome.CANCELLED -> Triple(
+            stringResource(R.string.outcome_cancelled),
+            MaterialTheme.colorScheme.tertiary,
+            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+        )
+        AuditOutcome.PENDING -> Triple(
+            stringResource(R.string.outcome_pending),
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+        )
+    }
+
+    val iconVector = when (entry.outcome) {
+        AuditOutcome.APPROVED -> Icons.Outlined.Check
+        AuditOutcome.DENIED -> Icons.Filled.Close
+        else -> Icons.Filled.Schedule
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(ShapeFull)
+                    .background(badgeBg),
+                contentAlignment = Alignment.Center
             ) {
-                if (icon != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(ShapeMedium)
-                            .background(containerColor),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = onContainerColor,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = name,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                    Text(
-                        text = author,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Icon(
+                    imageVector = iconVector,
+                    contentDescription = null,
+                    tint = badgeColor,
+                    modifier = Modifier.size(16.dp)
+                )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(RiskLowColor)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val title = request.command
+                    ?: request.target
+                    ?: request.description
+                    ?: request.permissionType
+                Text(
+                    text = title.take(35),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    fontFamily = MonospaceFont,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = status,
+                    text = "${request.agentName} • ${request.riskLevel.uppercase()}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp,
-                    fontFamily = MonospaceFont,
-                    fontWeight = FontWeight.Medium
+                    fontSize = 11.sp
                 )
             }
+        }
+
+        Box(
+            modifier = Modifier
+                .clip(ShapeFull)
+                .background(badgeBg)
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = badgeText,
+                color = badgeColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = MonospaceFont
+            )
         }
     }
 }
