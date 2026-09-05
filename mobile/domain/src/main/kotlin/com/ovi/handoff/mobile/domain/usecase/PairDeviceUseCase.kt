@@ -77,25 +77,52 @@ public object PairingPayloadParser {
         value.replace("%3A", ":").replace("%2F", "/").replace("%3a", ":").replace("%2f", "/")
 }
 
+/**
+ * Pairs this phone with a desktop, and only reports success once the relay agrees.
+ *
+ * The confirmation step is the point. Pairing used to consist of parsing the code and writing it to
+ * disk, both of which succeed regardless of whether the pairing is usable: the app then navigated to
+ * "Paired. Waiting for your agent." while the relay was refusing its socket, and the user had no way
+ * to discover that. The relay refuses for nameable, fixable reasons — most often that no desktop has
+ * claimed the pair room because `handoff --pair` was never left running — so the fix is to wait for
+ * the socket and, on failure, roll the pairing back and repeat the relay's own explanation.
+ */
 public class PairDeviceUseCase(
     private val pairingRepository: PairingRepository,
     private val relayRepository: RelayRepository,
     private val pushTokenProvider: PushTokenProvider
 ) {
     public suspend operator fun invoke(qrPayload: String): Result<Unit> {
-        val info = PairingPayloadParser.parse(qrPayload).getOrElse { return Result.failure(it) }
+        val trimmed = qrPayload.trim()
+        val digitsOnly = trimmed.filter { it.isDigit() }
+        val isPin = digitsOnly.length == 6 && trimmed.matches(Regex("^[0-9\\s-]+$"))
+
+        val info = if (isPin) {
+            relayRepository.resolvePin(digitsOnly).getOrElse { return Result.failure(it) }
+        } else {
+            PairingPayloadParser.parse(qrPayload).getOrElse { return Result.failure(it) }
+        }
 
         if (info.pairSecret.isNullOrBlank()) {
             // Without the relay token the socket will be refused, so say so now instead of leaving
             // the user staring at a "connected" screen that never receives anything.
             return Result.failure(
                 IllegalArgumentException(
-                    "That code is missing its relay token. Run `handoff --pair` on your desktop and scan the new code."
+                    "That code is missing its relay token. On your computer run `handoff --pair` and " +
+                        "scan the QR code it shows, or paste the whole handoff://pair link."
                 )
             )
         }
 
         pairingRepository.pairDevice(info).getOrElse { return Result.failure(it) }
+
+        // Stored first because the socket needs the host and token to connect at all, then rolled
+        // back if the relay will not have us: a half-pairing left on disk is what produced the
+        // permanently "connecting" home screen.
+        relayRepository.awaitConnected(info.pairId).getOrElse { cause ->
+            pairingRepository.clearPairing()
+            return Result.failure(cause)
+        }
 
         // Announce this phone's signing key before anything else, so the very first decision the
         // desktop receives is already verifiable.

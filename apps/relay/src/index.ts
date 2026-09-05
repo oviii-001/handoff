@@ -37,6 +37,8 @@ const FrameType = {
 	ABORT: 'abort',
 	ACK: 'ack',
 	EXPIRED: 'expired',
+	CANCEL: 'cancel',
+	PRESENCE: 'presence',
 } as const;
 
 /** Storage keys. Prefixes are load-bearing: the sweep and replay paths both list by prefix. */
@@ -45,6 +47,7 @@ const StorageKey = {
 	FCM_TOKEN: 'fcmToken',
 	MOBILE_KEY: 'mobileKey',
 	OAUTH: 'oauth',
+	PIN_DATA: 'pin_data',
 	PENDING_REQUEST_PREFIX: 'req:',
 	PENDING_DECISION_PREFIX: 'dec:',
 } as const;
@@ -184,22 +187,49 @@ export class RelayRoom implements DurableObject {
 	}
 
 	async fetch(request: Request): Promise<Response> {
-		if (request.headers.get('Upgrade') !== 'websocket') {
-			return new Response('Expected Upgrade: websocket', { status: 426 });
-		}
-
 		const url = new URL(request.url);
-		const clientType = (url.searchParams.get('type') as ClientType) ?? 'desktop';
 		const pairId = url.searchParams.get('pairId');
 		const token = url.searchParams.get('token') ?? '';
 
 		if (!pairId) {
-			return new Response('Missing pair id', { status: 400 });
+			return Response.json({ error: 'missing_pair_id', message: 'Missing pair id' }, { status: 400 });
 		}
+
+		// Plain-HTTP status route. A rejected WebSocket upgrade reaches Ktor and okhttp as an opaque
+		// exception, so the *reason* a client cannot join — nobody has claimed this pair, or the
+		// token does not match — was unreachable by the code that has to explain it to the user.
+		if (url.searchParams.get('probe') === 'status') {
+			return this.statusResponse(token);
+		}
+
+		if (url.searchParams.get('probe') === 'pin_resolve') {
+			const pinData = await this.state.storage.get<any>(StorageKey.PIN_DATA);
+			if (!pinData) {
+				return Response.json({ ok: false, error: 'pin_not_found', message: 'PIN expired or not found' }, { status: 404 });
+			}
+			return Response.json({ ok: true, payload: pinData });
+		}
+
+		if (request.method === 'POST' && url.searchParams.get('action') === 'pin_register') {
+			try {
+				const body = (await request.json()) as any;
+				await this.state.storage.put(StorageKey.PIN_DATA, body);
+				await this.state.storage.setAlarm(Date.now() + 10 * 60 * 1000);
+				return Response.json({ ok: true });
+			} catch (err: any) {
+				return Response.json({ ok: false, error: err?.message }, { status: 400 });
+			}
+		}
+
+		if (request.headers.get('Upgrade') !== 'websocket') {
+			return new Response('Expected Upgrade: websocket', { status: 426 });
+		}
+
+		const clientType = (url.searchParams.get('type') as ClientType) ?? 'desktop';
 
 		const authorized = await this.authorize(clientType, token);
 		if (!authorized.ok) {
-			return new Response(authorized.reason, { status: 401 });
+			return Response.json({ error: authorized.error, message: authorized.message }, { status: 401 });
 		}
 
 		const pair = new WebSocketPair();
@@ -227,6 +257,34 @@ export class RelayRoom implements DurableObject {
 	}
 
 	/**
+	 * Reports what this pair room knows, for `handoff --doctor` and for the phone's pairing check.
+	 *
+	 * An unclaimed room answers 200 rather than 401: "no desktop has claimed this pair yet" is a
+	 * legitimate, actionable answer, and it is exactly the state a user hits when they scan a code
+	 * without a daemon running.
+	 */
+	private async statusResponse(token: string): Promise<Response> {
+		const existing = await this.state.storage.get<AuthRecord>(StorageKey.AUTH);
+		if (!existing) {
+			return Response.json({ claimed: false, phoneOnline: false, desktopOnline: false });
+		}
+		if (!token || !timingSafeEqual(await sha256Hex(token), existing.tokenHash)) {
+			return Response.json(
+				{
+					error: 'invalid_token',
+					message: 'This pair id is claimed by a different device or an older pairing secret.',
+				},
+				{ status: 401 }
+			);
+		}
+		return Response.json({
+			claimed: true,
+			phoneOnline: this.isOnline('mobile'),
+			desktopOnline: this.isOnline('desktop'),
+		});
+	}
+
+	/**
 	 * Trust-on-first-use for the pairing token.
 	 *
 	 * The first desktop to connect claims the room by recording a hash of its token; every later
@@ -234,15 +292,27 @@ export class RelayRoom implements DurableObject {
 	 * the same moment the pair id is, so the unclaimed window is the gap between generating a QR
 	 * code and the daemon's first connection.
 	 */
-	private async authorize(clientType: ClientType, token: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+	private async authorize(
+		clientType: ClientType,
+		token: string
+	): Promise<{ ok: true } | { ok: false; error: string; message: string }> {
 		const existing = await this.state.storage.get<AuthRecord>(StorageKey.AUTH);
 
 		if (!existing) {
 			if (clientType !== 'desktop') {
-				return { ok: false, reason: 'Pair not yet claimed by a desktop' };
+				return {
+					ok: false,
+					error: 'unclaimed',
+					message:
+						'No desktop has claimed this pair yet. Run `handoff --pair` on your computer and keep it open while you scan.',
+				};
 			}
 			if (token.length < 32) {
-				return { ok: false, reason: 'Pairing token too short' };
+				return {
+					ok: false,
+					error: 'weak_token',
+					message: 'Pairing token is too short to be a pairing secret.',
+				};
 			}
 			await this.state.storage.put<AuthRecord>(StorageKey.AUTH, {
 				tokenHash: await sha256Hex(token),
@@ -252,10 +322,15 @@ export class RelayRoom implements DurableObject {
 		}
 
 		if (!token) {
-			return { ok: false, reason: 'Missing pairing token' };
+			return { ok: false, error: 'missing_token', message: 'This pairing code carries no relay token.' };
 		}
 		if (!timingSafeEqual(await sha256Hex(token), existing.tokenHash)) {
-			return { ok: false, reason: 'Invalid pairing token' };
+			return {
+				ok: false,
+				error: 'invalid_token',
+				message:
+					'This pair id is claimed by a different device or an older pairing secret. Run `handoff --rotate-pair`, then pair again.',
+			};
 		}
 		return { ok: true };
 	}
@@ -268,8 +343,32 @@ export class RelayRoom implements DurableObject {
 			} else {
 				await this.replayForDesktop(socket);
 			}
+			// Both sides need to know the other is there: the desktop so it can stop waiting on an
+			// absent phone, the phone so it can say whether a workstation is actually listening.
+			this.announcePresence();
 		} catch (error) {
 			console.error('replay failed', error);
+		}
+	}
+
+	private isOnline(target: ClientType, excluding?: WebSocket): boolean {
+		return this.state.getWebSockets(target).some((socket) => socket !== excluding);
+	}
+
+	/**
+	 * Tells each side whether its peer currently holds a socket.
+	 *
+	 * [excluding] is the socket that is in the middle of closing. The runtime still lists it while
+	 * its close handler runs, so counting it would announce a peer that has just left — exactly
+	 * inverting the signal at the one moment it matters.
+	 */
+	private announcePresence(excluding?: WebSocket): void {
+		const phoneOnline = this.isOnline('mobile', excluding);
+		const desktopOnline = this.isOnline('desktop', excluding);
+		const frame = envelope(FrameType.PRESENCE, { phoneOnline, desktopOnline });
+		for (const socket of [...this.state.getWebSockets('desktop'), ...this.state.getWebSockets('mobile')]) {
+			if (socket === excluding) continue;
+			this.trySend(socket, frame);
 		}
 	}
 
@@ -360,6 +459,17 @@ export class RelayRoom implements DurableObject {
 		parsed: unknown,
 		raw: string
 	): Promise<void> {
+		// The agent abandoned this request: stop storing it, and tell the phone to drop the card so
+		// nobody is invited to authorize something no longer being waited on.
+		if (type === FrameType.CANCEL) {
+			const requestId = readString(parsed, 'requestId') ?? readString(parsed, 'payload', 'requestId');
+			if (requestId) {
+				await this.state.storage.delete(StorageKey.PENDING_REQUEST_PREFIX + requestId);
+			}
+			this.broadcast('mobile', raw);
+			return;
+		}
+
 		// A request must be durable before it is forwarded, so an offline phone cannot lose it.
 		const looksLikeRequest = type === FrameType.REQUEST || (type === undefined && (parsed as any)?.permission);
 		if (looksLikeRequest) {
@@ -368,7 +478,14 @@ export class RelayRoom implements DurableObject {
 
 			const stored = await this.storePendingRequest(described, raw);
 			if (!stored) {
-				this.trySend(socket, envelope(FrameType.ACK, { requestId: described.requestId, status: 'rejected' }, described.requestId));
+				this.trySend(
+					socket,
+					envelope(
+						FrameType.ACK,
+						{ requestId: described.requestId, status: 'rejected', delivered: false, pushQueued: false },
+						described.requestId
+					)
+				);
 				return;
 			}
 
@@ -378,9 +495,27 @@ export class RelayRoom implements DurableObject {
 				delivered = this.trySend(phone, raw) || delivered;
 			}
 
-			this.trySend(socket, envelope(FrameType.ACK, { requestId: described.requestId, status: 'stored' }, described.requestId));
+			// Whether a push can even be attempted is decided here so the ack can carry it. Without
+			// this the desktop could not distinguish "nobody will ever answer" from "the phone is
+			// asleep and about to be woken", and had to assume the latter for the request's full
+			// five-minute deadline in both cases.
+			const pushable = !delivered && (await this.canPush());
+			this.trySend(
+				socket,
+				envelope(
+					FrameType.ACK,
+					{
+						requestId: described.requestId,
+						status: 'stored',
+						delivered,
+						pushQueued: pushable,
+						phoneOnline: delivered,
+					},
+					described.requestId
+				)
+			);
 
-			if (!delivered) {
+			if (!delivered && pushable) {
 				this.state.waitUntil(this.notifyPhone(described));
 			}
 			return;
@@ -388,6 +523,13 @@ export class RelayRoom implements DurableObject {
 
 		// Everything else (session_info, abort) is transient state for the phone.
 		this.broadcast('mobile', raw);
+	}
+
+	/** Whether a push notification could actually be sent for this pair. */
+	private async canPush(): Promise<boolean> {
+		if (!this.env.FIREBASE_SERVICE_ACCOUNT) return false;
+		const fcmToken = await this.state.storage.get<string>(StorageKey.FCM_TOKEN);
+		return Boolean(fcmToken);
 	}
 
 	private async handleMobileFrame(
@@ -429,7 +571,16 @@ export class RelayRoom implements DurableObject {
 			}
 			this.trySend(
 				socket,
-				envelope(FrameType.ACK, { requestId: requestId ?? '', status: delivered ? 'delivered' : 'queued' }, requestId)
+				envelope(
+					FrameType.ACK,
+					{
+						requestId: requestId ?? '',
+						status: delivered ? 'delivered' : 'queued',
+						delivered,
+						desktopOnline: delivered,
+					},
+					requestId
+				)
 			);
 			return;
 		}
@@ -508,10 +659,12 @@ export class RelayRoom implements DurableObject {
 
 	async webSocketClose(socket: WebSocket): Promise<void> {
 		this.rateLimits.delete(socket);
+		this.announcePresence(socket);
 	}
 
 	async webSocketError(socket: WebSocket): Promise<void> {
 		this.rateLimits.delete(socket);
+		this.announcePresence(socket);
 	}
 
 	private allowFrame(socket: WebSocket): boolean {
@@ -647,6 +800,7 @@ export class RelayRoom implements DurableObject {
 // ---------------------------------------------------------------------------------------------
 
 const WS_ROUTE = /^\/ws\/(desktop|mobile)\/([A-Za-z0-9._-]{1,128})$/;
+const PAIR_ROUTE = /^\/pair\/([A-Za-z0-9._-]{1,128})$/;
 
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
@@ -656,6 +810,55 @@ export default {
 			return Response.json({ ok: true, protocol: PROTOCOL_VERSION });
 		}
 
+		// The token may arrive as a header (preferred) or a query parameter, because some WebSocket
+		// clients cannot set headers on the upgrade request.
+		const bearer = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+		const token = bearer || url.searchParams.get('token') || '';
+
+		// Plain-HTTP view of one pair room, so a client that cannot open a socket can still be told
+		// why. Same token check as the socket, so it leaks nothing a joinable client cannot see.
+		const pairRoute = PAIR_ROUTE.exec(url.pathname);
+		if (pairRoute) {
+			const pairId = pairRoute[1];
+			const target = new URL(request.url);
+			target.searchParams.set('pairId', pairId);
+			target.searchParams.set('token', token);
+			target.searchParams.set('probe', 'status');
+
+			const stub = env.RELAY_ROOM.get(env.RELAY_ROOM.idFromName(pairId));
+			return stub.fetch(new Request(target.toString(), { method: 'GET' }));
+		}
+
+		if (url.pathname === '/pin/register' && request.method === 'POST') {
+			try {
+				const clone = request.clone();
+				const body = (await clone.json()) as any;
+				const pin = body?.pin ? String(body.pin).trim() : null;
+				if (!pin || !/^\d{6}$/.test(pin)) {
+					return Response.json({ error: 'invalid_pin', message: 'PIN must be 6 digits' }, { status: 400 });
+				}
+				const target = new URL(request.url);
+				target.searchParams.set('pairId', 'pin:' + pin);
+				target.searchParams.set('action', 'pin_register');
+				const stub = env.RELAY_ROOM.get(env.RELAY_ROOM.idFromName('pin:' + pin));
+				return stub.fetch(new Request(target.toString(), request));
+			} catch (e: any) {
+				return Response.json({ error: 'bad_request', message: e?.message }, { status: 400 });
+			}
+		}
+
+		if (url.pathname === '/pin/resolve') {
+			const pin = url.searchParams.get('code')?.trim();
+			if (!pin || !/^\d{6}$/.test(pin)) {
+				return Response.json({ error: 'invalid_pin', message: 'PIN must be 6 digits' }, { status: 400 });
+			}
+			const target = new URL(request.url);
+			target.searchParams.set('pairId', 'pin:' + pin);
+			target.searchParams.set('probe', 'pin_resolve');
+			const stub = env.RELAY_ROOM.get(env.RELAY_ROOM.idFromName('pin:' + pin));
+			return stub.fetch(new Request(target.toString(), { method: 'GET' }));
+		}
+
 		const route = WS_ROUTE.exec(url.pathname);
 		if (!route) {
 			return new Response('HandOff relay', { status: 200 });
@@ -663,11 +866,6 @@ export default {
 
 		const clientType = route[1] as ClientType;
 		const pairId = route[2];
-
-		// The token may arrive as a header (preferred) or a query parameter, because some WebSocket
-		// clients cannot set headers on the upgrade request.
-		const bearer = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ?? '';
-		const token = bearer || url.searchParams.get('token') || '';
 
 		const target = new URL(request.url);
 		target.searchParams.set('type', clientType);

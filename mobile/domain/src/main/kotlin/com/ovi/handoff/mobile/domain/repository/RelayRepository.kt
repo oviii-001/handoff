@@ -39,6 +39,17 @@ public interface RelayRepository {
     public val connectionState: StateFlow<ConnectionState>
 
     /**
+     * Why the socket is not up, in words a user can act on, or null when there is no problem.
+     *
+     * Kept separate from [ConnectionState] because the two answer different questions. The state
+     * drives the connection pill; this drives the sentence underneath it. Previously the reason was
+     * discarded entirely — the socket loop swallowed its exception — so a phone refused by the relay
+     * for a nameable reason ("no desktop has claimed this pair yet") looked exactly like a phone
+     * with no signal.
+     */
+    public val connectionError: StateFlow<String?>
+
+    /**
      * Every request still awaiting a decision, oldest first.
      *
      * Returns the whole queue rather than one request: the DAO had no `ORDER BY` and the repository
@@ -54,6 +65,17 @@ public interface RelayRepository {
 
     /** Ensures the socket is running. Safe to call repeatedly. */
     public suspend fun connect(pairId: String): Result<Unit>
+
+    /**
+     * Connects and suspends until the relay actually accepts this device, or explains why it will not.
+     *
+     * Exists because pairing used to be declared successful the moment the code parsed. The relay
+     * can refuse the socket — the pair room may be unclaimed, or claimed with a different secret —
+     * and the app would still store the pairing, navigate to the paired home screen and wait
+     * forever for requests that could never arrive. Confirming the socket is what makes "Paired"
+     * mean something.
+     */
+    public suspend fun awaitConnected(pairId: String, timeoutMs: Long = DEFAULT_CONNECT_TIMEOUT_MS): Result<Unit>
 
     /**
      * Queues a decision for delivery and resolves it locally only once the relay acknowledges it.
@@ -73,6 +95,9 @@ public interface RelayRepository {
 
     public suspend fun clearHistory(): Result<Unit>
 
+    /** Resolves an ephemeral 6-digit PIN into pairing info via the relay. */
+    public suspend fun resolvePin(pin: String): Result<PairingInfo>
+
     /**
      * Marks requests past their deadline as expired.
      *
@@ -81,4 +106,14 @@ public interface RelayRepository {
      * already given up on.
      */
     public suspend fun expireOverdueRequests(nowEpochMs: Long = System.currentTimeMillis()): Result<Int>
+
+    public companion object {
+        /**
+         * How long pairing waits for the socket.
+         *
+         * Long enough for a cold TLS handshake on mobile data, short enough that a user staring at a
+         * spinner gets an answer rather than an indefinite wait.
+         */
+        public const val DEFAULT_CONNECT_TIMEOUT_MS: Long = 15_000
+    }
 }

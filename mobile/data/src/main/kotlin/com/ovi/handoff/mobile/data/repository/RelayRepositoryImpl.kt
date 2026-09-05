@@ -14,6 +14,7 @@ import com.ovi.handoff.shared.model.DecisionType
 import com.ovi.handoff.shared.model.PermissionDecision
 import com.ovi.handoff.shared.model.PermissionRequest
 import com.ovi.handoff.shared.model.resolveProjectOrWorkspace
+import com.ovi.handoff.shared.protocol.AckPayload
 import com.ovi.handoff.shared.protocol.EnvelopeCodec
 import com.ovi.handoff.shared.protocol.FrameType
 import com.ovi.handoff.shared.protocol.PairHello
@@ -21,7 +22,16 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsText
+import com.ovi.handoff.mobile.domain.repository.PairingInfo
+import com.ovi.handoff.mobile.domain.usecase.PairingPayloadParser
+import com.ovi.handoff.mobile.data.di.DEFAULT_RELAY_HOST
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import io.ktor.http.HttpHeaders
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
@@ -36,6 +46,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -78,6 +89,13 @@ public class RelayRepositoryImpl(
     private val _connectionState = MutableStateFlow(ConnectionState.OFFLINE)
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
+    private val _connectionError = MutableStateFlow<String?>(null)
+    override val connectionError: StateFlow<String?> = _connectionError.asStateFlow()
+
+    /** Whether the desktop currently holds a socket, as last reported by the relay. */
+    private val _desktopOnline = MutableStateFlow<Boolean?>(null)
+    public val desktopOnline: StateFlow<Boolean?> = _desktopOnline.asStateFlow()
+
     /** Frames awaiting relay acknowledgement, in send order. Survives reconnects. */
     private val outbox = LinkedHashMap<String, String>()
     private val outboxLock = Mutex()
@@ -101,6 +119,10 @@ public class RelayRepositoryImpl(
 
     @Volatile
     private var activePairId: String? = null
+
+    /** Last socket-level failure, used only to enrich a diagnosis the relay could not provide. */
+    @Volatile
+    private var lastSocketError: String? = null
 
     // -----------------------------------------------------------------------------------------
     // Reads
@@ -137,6 +159,40 @@ public class RelayRepositoryImpl(
             if (connectionJob?.isActive == true) return@synchronized
             connectionJob = scope.launch { connectionLoop(pairId) }
         }
+    }
+
+    /**
+     * Connects and waits for the relay to accept us, or reports why it will not.
+     *
+     * The diagnosis comes from the relay's plain-HTTP pair status rather than from the socket. A
+     * rejected WebSocket upgrade surfaces through OkHttp/Ktor as an opaque failure, so the reason —
+     * which is the only useful part — has to be asked for separately.
+     */
+    override suspend fun awaitConnected(pairId: String, timeoutMs: Long): Result<Unit> {
+        connect(pairId)
+
+        val connected = withTimeoutOrNull(timeoutMs) {
+            connectionState.first { it == ConnectionState.CONNECTED }
+            true
+        } ?: false
+
+        if (connected) {
+            _connectionError.value = null
+            return Result.success(Unit)
+        }
+
+        val pairing = pairingRepository.getPairing()
+        val host = pairing?.relayHost?.takeIf { it.isNotBlank() } ?: defaultRelayHost
+        val reason = RelayDiagnostics.describe(
+            client = client,
+            host = host,
+            pairId = pairId,
+            token = pairing?.pairSecret,
+            socketError = lastSocketError
+        )
+
+        _connectionError.value = reason
+        return Result.failure(IllegalStateException(reason))
     }
 
     override suspend fun sendDecision(pairId: String, decision: PermissionDecision): Result<Unit> {
@@ -251,7 +307,7 @@ public class RelayRepositoryImpl(
         outboxLock.withLock { sentOnThisConnection.clear() }
     }
 
-    private suspend fun acknowledge(requestId: String) {
+    private suspend fun acknowledge(requestId: String, ack: AckPayload?) {
         outboxLock.withLock {
             val matching = outbox.keys.filter { it.substringAfter(':', it) == requestId }
             matching.forEach {
@@ -259,6 +315,7 @@ public class RelayRepositoryImpl(
                 sentOnThisConnection.remove(it)
             }
         }
+        ack?.desktopOnline?.let { _desktopOnline.value = it }
         acks.remove(requestId)?.complete(true)
     }
 
@@ -278,6 +335,8 @@ public class RelayRepositoryImpl(
                 // This is the state a phone paired with a pre-v2 QR code lands in; the pairing screen
                 // reports it rather than leaving a "connected" screen that never receives anything.
                 _connectionState.value = ConnectionState.OFFLINE
+                _connectionError.value =
+                    "This pairing has no relay token. On your computer run `handoff --pair` and scan the code again."
                 return
             }
 
@@ -292,6 +351,7 @@ public class RelayRepositoryImpl(
                     attempt = 0
                     resetConnectionSendState()
                     _connectionState.value = ConnectionState.CONNECTED
+                    _connectionError.value = null
 
                     // Re-announce on every connect: the desktop may have restarted and forgotten the
                     // key, and the relay replays this to a desktop that reconnects later.
@@ -314,10 +374,15 @@ public class RelayRepositoryImpl(
                         writer.cancel()
                     }
                 }
-            } catch (_: Exception) {
-                // Reported through connectionState rather than logged: the UI needs to show it.
+            } catch (cause: Exception) {
+                // Recorded rather than swallowed. Discarding this is what left a refused phone
+                // indistinguishable from a phone with no signal, with nothing on screen either way.
+                lastSocketError = cause.message ?: cause::class.simpleName
             } finally {
                 _connectionState.value = ConnectionState.OFFLINE
+                // Presence is only meaningful while a socket is up; keeping the last value would
+                // claim a desktop is attached long after we stopped being told.
+                _desktopOnline.value = null
             }
 
             if (!scope.isActive) return
@@ -328,15 +393,8 @@ public class RelayRepositoryImpl(
         }
     }
 
-    private fun socketUrl(host: String, pairId: String): String {
-        val scheme = if (isLocalHost(host)) "ws" else "wss"
-        return "$scheme://$host/ws/mobile/$pairId"
-    }
-
-    private fun isLocalHost(host: String): Boolean {
-        val bare = host.substringBefore(':').lowercase()
-        return bare == "localhost" || bare == "10.0.2.2" || bare == "127.0.0.1"
-    }
+    private fun socketUrl(host: String, pairId: String): String =
+        "${RelayUrls.wsScheme(host)}://$host/ws/mobile/$pairId"
 
     private suspend fun handleFrame(text: String, desktopPublicKey: String?) {
         val envelope = EnvelopeCodec.decode(text) ?: return
@@ -364,9 +422,22 @@ public class RelayRepositoryImpl(
                 notificationNotifier?.dismissNotification(requestId)
             }
 
+            FrameType.CANCEL -> {
+                // The agent stopped waiting. Clearing the card is the whole point: leaving it up
+                // invites the user to authorize an action nobody will act on.
+                val requestId = envelope.requestId ?: EnvelopeCodec.asCancel(envelope)?.requestId ?: return
+                requestDao.resolve(requestId, DecisionType.CANCEL, System.currentTimeMillis())
+                notificationNotifier?.dismissNotification(requestId)
+            }
+
+            FrameType.PRESENCE -> {
+                val presence = EnvelopeCodec.asPresence(envelope) ?: return
+                presence.desktopOnline?.let { _desktopOnline.value = it }
+            }
+
             FrameType.ACK -> {
                 val requestId = envelope.requestId ?: return
-                acknowledge(requestId)
+                acknowledge(requestId, EnvelopeCodec.asAck(envelope))
             }
         }
     }
@@ -398,6 +469,35 @@ public class RelayRepositoryImpl(
                 request.permission.cwd
             )
         )
+    }
+
+    override suspend fun resolvePin(pin: String): Result<PairingInfo> = runCatching {
+        val targetHost = pairingRepository.getPairing()?.relayHost ?: DEFAULT_RELAY_HOST
+        val scheme = RelayUrls.httpScheme(targetHost)
+        val response = client.get("$scheme://$targetHost/pin/resolve?code=$pin")
+        if (response.status.value == 404) {
+            throw IllegalArgumentException("Code $pin not found or expired. Make sure 'handoff --pair' is running on your desktop.")
+        }
+        if (response.status.value !in 200..299) {
+            throw IllegalStateException("Relay error: HTTP ${response.status.value}")
+        }
+        val bodyText = response.bodyAsText()
+        val jsonParser = Json { ignoreUnknownKeys = true }
+        val root = jsonParser.parseToJsonElement(bodyText).jsonObject
+        val payloadObj = root["payload"]?.jsonObject ?: root
+        val pairUrl = payloadObj["pairUrl"]?.jsonPrimitive?.contentOrNull
+        if (!pairUrl.isNullOrBlank()) {
+            PairingPayloadParser.parse(pairUrl).getOrThrow()
+        } else {
+            val pairId = payloadObj["pairId"]?.jsonPrimitive?.contentOrNull
+                ?: throw IllegalStateException("Invalid response: missing pairId")
+            PairingInfo(
+                pairId = pairId,
+                relayHost = payloadObj["host"]?.jsonPrimitive?.contentOrNull ?: targetHost,
+                desktopPublicKey = payloadObj["pubKey"]?.jsonPrimitive?.contentOrNull,
+                pairSecret = payloadObj["token"]?.jsonPrimitive?.contentOrNull
+            )
+        }
     }
 
     private companion object {

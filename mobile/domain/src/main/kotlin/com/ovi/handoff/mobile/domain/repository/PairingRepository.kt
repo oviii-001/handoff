@@ -30,4 +30,5 @@ public interface PairingRepository {
     public suspend fun clearPairing(): Result<Unit>
     public suspend fun saveConnectedSession(ideName: String, workspaceName: String?): Result<Unit>
     public fun observeConnectedSession(): Flow<ConnectedSession?>
+    public suspend fun warmUp()
 }

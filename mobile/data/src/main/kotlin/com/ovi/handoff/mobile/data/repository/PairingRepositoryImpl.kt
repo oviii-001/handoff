@@ -128,7 +128,7 @@ class PairingRepositoryImpl(
      * Called explicitly rather than from `init`, because the constructor previously read from disk,
      * making object construction, and therefore dependency-graph creation, a blocking I/O operation.
      */
-    suspend fun warmUp() {
+    override suspend fun warmUp() {
         if (sessionFlow.value != null) return
         withContext(Dispatchers.IO) {
             val ide = prefs.getString(KEY_LAST_IDE, null) ?: return@withContext
