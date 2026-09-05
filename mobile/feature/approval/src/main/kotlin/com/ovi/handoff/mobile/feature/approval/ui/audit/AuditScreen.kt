@@ -43,6 +43,9 @@ import com.ovi.handoff.mobile.feature.approval.R
 import com.ovi.handoff.mobile.core.theme.RiskLowColor
 import com.ovi.handoff.mobile.feature.approval.ui.model.AuditEntryUiModel
 import com.ovi.handoff.mobile.feature.approval.ui.model.AuditOutcome
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.text.style.TextOverflow
+import com.ovi.handoff.shared.model.shortWorkspaceName
 import kotlinx.collections.immutable.ImmutableList
 
 @Composable
@@ -199,44 +202,12 @@ fun AuditScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                AgentBadge(
+                                    agentId = req.agentId,
+                                    agentName = req.agentName,
+                                    version = req.agentVersion,
                                     modifier = Modifier.weight(1f, fill = false)
-                                ) {
-                                    AgentBadge(
-                                        agentId = req.agentId,
-                                        agentName = req.agentName,
-                                        version = req.agentVersion
-                                    )
-                                    val project = req.projectOrWorkspace
-                                    if (!project.isNullOrBlank()) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(ShapeFull)
-                                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Outlined.Folder,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(11.dp)
-                                                )
-                                                Text(
-                                                    text = project,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
+                                )
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -304,9 +275,41 @@ fun AuditScreen(
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val project = req.workspaceLabel ?: req.projectOrWorkspace?.let { shortWorkspaceName(it) }
+                                if (!project.isNullOrBlank()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f, fill = false)
+                                            .clip(ShapeFull)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Folder,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(11.dp)
+                                            )
+                                            Text(
+                                                text = project,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                                 Text(
                                     text = req.formattedTimestamp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,

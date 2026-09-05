@@ -10,4 +10,21 @@
     <string name="approval_waiting">Waiting for incoming agent requests...</string>
     <string name="approval_approve">Approve</string>
     <string name="approval_reject">Reject</string>
+
+    <!-- Notification Strings -->
+    <string name="notif_channel_name">Agent Authorizations</string>
+    <string name="notif_channel_desc">High-priority authorization alerts for AI agent actions and tools</string>
+    <string name="notif_action_approve_once">Approve Once</string>
+    <string name="notif_action_deny">Deny</string>
+    <string name="notif_action_answer">Answer</string>
+    <string name="notif_action_review_plan">Review Plan</string>
+    <string name="notif_action_reject">Reject</string>
+    <string name="notif_action_dismiss">Dismiss</string>
+    <string name="notif_title_critical">CRITICAL: %1$s</string>
+    <string name="notif_title_high">HIGH: %1$s</string>
+    <string name="notif_title_action">%1$s: %2$s</string>
+    <string name="notif_title_question">Question from %1$s</string>
+    <string name="notif_title_plan">Plan Review: %1$s</string>
+    <string name="notif_subtext_format">%1$s • %2$s</string>
+    <string name="notif_footer_respond">Tap an action below to respond immediately</string>
 </resources>

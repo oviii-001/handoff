@@ -7,6 +7,8 @@ import com.ovi.handoff.mobile.domain.notification.NotificationNotifier
 import com.ovi.handoff.shared.model.AgentInfo
 import com.ovi.handoff.shared.model.PermissionInfo
 import com.ovi.handoff.shared.model.PermissionRequest
+import com.ovi.handoff.shared.model.PlanPayload
+import com.ovi.handoff.shared.model.QuestionPayload
 import com.ovi.handoff.shared.model.RiskInfo
 import com.ovi.handoff.shared.model.SessionInfo
 import org.koin.core.component.KoinComponent
@@ -24,35 +26,87 @@ public class TestNotificationReceiver : BroadcastReceiver(), KoinComponent {
     private val notificationNotifier: NotificationNotifier by inject()
 
     override fun onReceive(context: Context, intent: Intent) {
+        val type = intent.getStringExtra(EXTRA_TYPE) ?: "command"
         val agent = intent.getStringExtra(EXTRA_AGENT) ?: "antigravity"
         val command = intent.getStringExtra(EXTRA_COMMAND) ?: "git push origin main --force"
-        val risk = intent.getStringExtra(EXTRA_RISK) ?: "critical"
+        val risk = intent.getStringExtra(EXTRA_RISK) ?: if (type == "command") "critical" else "medium"
         val pairId = intent.getStringExtra(EXTRA_PAIR_ID) ?: "session-test"
         val reqId = intent.getStringExtra(EXTRA_REQ_ID) ?: ("test-" + UUID.randomUUID().toString().take(8))
 
-        Timber.d("Posting test notification: reqId=$reqId, agent=$agent, command=$command, risk=$risk")
+        Timber.d("Posting test notification: type=$type, reqId=$reqId, agent=$agent, risk=$risk")
 
-        val request = PermissionRequest(
-            id = reqId,
-            protocolVersion = "1.0",
-            agent = AgentInfo(
-                id = agent,
-                name = when (agent.lowercase()) {
-                    "cursor" -> "Cursor"
-                    "codex" -> "Codex"
-                    else -> "Antigravity"
-                }
-            ),
-            session = SessionInfo(id = pairId, project = "HandOff", workspace = "handoff"),
-            permission = PermissionInfo(
+        val agentInfo = AgentInfo(
+            id = agent,
+            name = when (agent.lowercase()) {
+                "cursor" -> "Cursor"
+                "claude", "claudecode" -> "Claude Code"
+                "codex" -> "Codex"
+                else -> "Antigravity"
+            }
+        )
+
+        val permission = when (type) {
+            "diff" -> PermissionInfo(
+                type = "file_edit",
+                diff = "--- a/src/main.kt\n+++ b/src/main.kt\n@@ -12,3 +12,4 @@\n+ val secret = loadProductionKeys()\n- val secret = null",
+                description = "Agent requested code modifications"
+            )
+            "question" -> PermissionInfo(
+                type = "question",
+                description = "Agent requested architecture decision"
+            )
+            "plan" -> PermissionInfo(
+                type = "plan",
+                description = "Agent prepared implementation plan"
+            )
+            else -> PermissionInfo(
                 type = "shell",
                 command = command,
                 description = "Agent requested terminal execution permission"
+            )
+        }
+
+        val questionPayload = if (type == "question") {
+            QuestionPayload(
+                question = intent.getStringExtra(EXTRA_QUESTION) ?: "Should we proceed with database schema migration on production?",
+                options = listOf(
+                    "Yes, run migration now",
+                    "No, take a backup first"
+                )
+            )
+        } else null
+
+        val planPayload = if (type == "plan") {
+            PlanPayload(
+                title = "Database Migration & Worker Deployment",
+                summary = intent.getStringExtra(EXTRA_PLAN) ?: "1. Update schema\n2. Run database migration\n3. Deploy Cloudflare Worker",
+                userReviewRequired = listOf("Check production DB credentials before running migration")
+            )
+        } else null
+
+        val request = PermissionRequest(
+            id = reqId,
+            protocolVersion = "2.0",
+            agent = agentInfo,
+            session = SessionInfo(id = pairId, project = "HandOff", workspace = "handoff"),
+            permission = permission,
+            question = questionPayload,
+            plan = planPayload,
+            risk = RiskInfo(
+                level = risk,
+                reasons = listOf(
+                    when (type) {
+                        "question" -> "Decision input requested"
+                        "plan" -> "Multi-step agent plan requires approval"
+                        "diff" -> "Modifying production codebase"
+                        else -> "High-risk command: $command"
+                    }
+                )
             ),
-            risk = RiskInfo(level = risk, reasons = listOf("Command execution: $command")),
             options = listOf("once", "session", "deny"),
             createdAt = Instant.now().toString(),
-            expiresAt = Instant.now().plusSeconds(900).toString()
+            expiresAt = Instant.now().plusSeconds(600).toString(),
+            expiresAtEpochMs = System.currentTimeMillis() + 600_000L
         )
 
         notificationNotifier.postPermissionRequestNotification(request, pairId)
@@ -60,9 +114,12 @@ public class TestNotificationReceiver : BroadcastReceiver(), KoinComponent {
 
     public companion object {
         public const val ACTION_TRIGGER_TEST_NOTIFICATION: String = "com.ovi.handoff.ACTION_TRIGGER_TEST_NOTIFICATION"
+        public const val EXTRA_TYPE: String = "type"
         public const val EXTRA_AGENT: String = "agent"
         public const val EXTRA_COMMAND: String = "command"
         public const val EXTRA_RISK: String = "risk"
+        public const val EXTRA_QUESTION: String = "question"
+        public const val EXTRA_PLAN: String = "plan"
         public const val EXTRA_PAIR_ID: String = "pairId"
         public const val EXTRA_REQ_ID: String = "reqId"
     }

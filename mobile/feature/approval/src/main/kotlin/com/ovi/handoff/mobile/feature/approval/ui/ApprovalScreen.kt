@@ -195,6 +195,7 @@ fun ApprovalScreen(
                             onSubmitQuestion = viewModel::onSubmitQuestion,
                             onProceedPlan = viewModel::onProceedPlan,
                             onRequestPlanChanges = viewModel::onRequestPlanChanges,
+                            onExtendDeadline = viewModel::extendActiveDeadline,
                             onShowPrevious = viewModel::showPreviousRequest,
                             onShowNext = viewModel::showNextRequest,
                             onBlocked = viewModel::blockCurrentRequest

@@ -59,6 +59,8 @@ public data class ApprovalUiState(
     val pendingRequests: ImmutableList<PermissionRequestUiModel> = persistentListOf(),
     val activeRequestIndex: Int = 0,
     val connectionState: ConnectionState = ConnectionState.OFFLINE,
+    /** Why the relay link is down, in words the user can act on. Null when there is no problem. */
+    val connectionError: String? = null,
     val isSendingDecision: Boolean = false,
     val selectedTab: ApprovalTab = ApprovalTab.HOME,
     val auditEntries: ImmutableList<AuditEntryUiModel> = persistentListOf(),
@@ -116,6 +118,7 @@ public class ApprovalViewModel(
     private var pendingDomainRequests: List<PermissionRequest> = emptyList()
 
     init {
+        viewModelScope.launch { pairingRepository.warmUp() }
         resolvePairing()
         observeHistory()
         observeConnectedSession()
@@ -152,10 +155,27 @@ public class ApprovalViewModel(
                     .sortedWith(compareByDescending<PermissionRequestUiModel> { it.riskWeight }.thenBy { it.createdAtEpochMs })
                     .toImmutableList()
 
+                val firstReq = ordered.firstOrNull()
+                if (firstReq != null) {
+                    val ide = firstReq.agentName.ifBlank { firstReq.agentId }
+                    val ws = firstReq.workspaceLabel ?: firstReq.projectOrWorkspace?.let(::folderName)
+                    if (ide.isNotBlank()) {
+                        viewModelScope.launch {
+                            pairingRepository.saveConnectedSession(ide, ws)
+                        }
+                    }
+                }
+
                 _uiState.update { state ->
                     state.copy(
                         pendingRequests = ordered,
-                        activeRequestIndex = state.activeRequestIndex.coerceIn(0, maxOf(0, ordered.lastIndex))
+                        activeRequestIndex = state.activeRequestIndex.coerceIn(0, maxOf(0, ordered.lastIndex)),
+                        connectedAgent = state.connectedAgent ?: firstReq?.let {
+                            ConnectedAgentUiModel(id = it.agentId, name = it.agentName, version = it.agentVersion)
+                        },
+                        activeWorkspaceLabel = state.activeWorkspaceLabel ?: firstReq?.let {
+                            it.workspaceLabel ?: it.projectOrWorkspace?.let(::folderName)
+                        }
                     )
                 }
             }
@@ -190,14 +210,17 @@ public class ApprovalViewModel(
                         filteredAuditEntries = filtered.toImmutableList(),
                         recentActivity = all.take(RECENT_ACTIVITY_COUNT).toImmutableList(),
                         decidedCount = all.count { it.outcome != AuditOutcome.PENDING },
-                        // Falls back to the most recent request's agent, so the home screen still
-                        // names the IDE after a restart when no session announcement has arrived yet.
+                        // Falls back to the most recent request's agent and workspace, so the home screen still
+                        // names the IDE and project after a restart when no session announcement has arrived yet.
                         connectedAgent = state.connectedAgent ?: all.firstOrNull()?.let { entry ->
                             ConnectedAgentUiModel(
                                 id = entry.request.agentId,
                                 name = entry.request.agentName,
                                 version = entry.request.agentVersion
                             )
+                        },
+                        activeWorkspaceLabel = state.activeWorkspaceLabel ?: all.firstOrNull()?.let { entry ->
+                            entry.request.workspaceLabel ?: entry.request.projectOrWorkspace?.let(::folderName)
                         }
                     )
                 }
@@ -248,6 +271,11 @@ public class ApprovalViewModel(
         viewModelScope.launch {
             relayRepository.connectionState.collect { state ->
                 _uiState.update { it.copy(connectionState = state) }
+            }
+        }
+        viewModelScope.launch {
+            relayRepository.connectionError.collect { reason ->
+                _uiState.update { it.copy(connectionError = reason) }
             }
         }
     }
@@ -346,6 +374,18 @@ public class ApprovalViewModel(
 
     public fun blockCurrentRequest(reason: String) {
         onReject(reason)
+    }
+
+    public fun extendActiveDeadline(extendMs: Long = 300_000L) {
+        val current = _uiState.value.displayedRequest ?: return
+        val currentDeadline = current.expiresAtEpochMs ?: System.currentTimeMillis()
+        val newDeadline = currentDeadline + extendMs
+        _uiState.update { state ->
+            val updated = state.pendingRequests.map { req ->
+                if (req.id == current.id) req.copy(expiresAtEpochMs = newDeadline) else req
+            }.toImmutableList()
+            state.copy(pendingRequests = updated)
+        }
     }
 
     public fun setAgentFilter(agentId: String?) {

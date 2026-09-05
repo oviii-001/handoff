@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -36,6 +39,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -89,6 +93,7 @@ fun LiveRequestScreen(
     queueSize: Int,
     isSending: Boolean,
     connectionState: ConnectionState,
+    connectionError: String? = null,
     requireBiometricsForCritical: Boolean,
     onApprove: () -> Unit,
     onReject: (feedback: String?) -> Unit,
@@ -98,6 +103,7 @@ fun LiveRequestScreen(
     onShowPrevious: () -> Unit,
     onShowNext: () -> Unit,
     onBlocked: (String) -> Unit,
+    onExtendDeadline: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -135,13 +141,14 @@ fun LiveRequestScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (connectionState != ConnectionState.CONNECTED) {
-            ConnectionBanner(connectionState)
+            ConnectionBanner(connectionState, connectionError)
         }
 
         QueueHeader(
             queueIndex = queueIndex,
             queueSize = queueSize,
             expiresAtEpochMs = request.expiresAtEpochMs,
+            onExtendDeadline = onExtendDeadline,
             onShowPrevious = onShowPrevious,
             onShowNext = onShowNext
         )
@@ -223,39 +230,60 @@ private fun UnifiedRequestCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
+                Column(
                     modifier = Modifier.weight(1f, fill = false),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    AgentBadge(
-                        agentId = request.agentId,
-                        agentName = request.agentName,
-                        version = request.agentVersion
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.label_ide_tag),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        AgentBadge(
+                            agentId = request.agentId,
+                            agentName = request.agentName,
+                            version = request.agentVersion
+                        )
+                    }
                     request.workspaceLabel?.takeIf { it.isNotBlank() }?.let { label ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier
-                                .clip(ShapeFull)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                .padding(horizontal = 9.dp, vertical = 5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Folder,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(12.dp)
-                            )
                             Text(
-                                text = label,
+                                text = stringResource(R.string.label_working_tag),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium
                             )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier
+                                    .clip(ShapeFull)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                    .padding(horizontal = 9.dp, vertical = 3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Folder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = label,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
@@ -365,12 +393,15 @@ private fun UnifiedRequestCard(
 }
 
 @Composable
-private fun ConnectionBanner(state: ConnectionState) {
-    val message = if (state == ConnectionState.CONNECTING) {
-        stringResource(R.string.connection_connecting_banner)
-    } else {
-        stringResource(R.string.connection_offline_banner)
-    }
+private fun ConnectionBanner(state: ConnectionState, reason: String? = null) {
+    // A specific reason always beats the generic banner: "no computer has claimed this pairing code"
+    // tells the user what to do, where "You are offline" leaves them guessing.
+    val message = reason?.takeIf { it.isNotBlank() }
+        ?: if (state == ConnectionState.CONNECTING) {
+            stringResource(R.string.connection_connecting_banner)
+        } else {
+            stringResource(R.string.connection_offline_banner)
+        }
 
     Row(
         modifier = Modifier
@@ -401,6 +432,7 @@ private fun QueueHeader(
     queueIndex: Int,
     queueSize: Int,
     expiresAtEpochMs: Long?,
+    onExtendDeadline: () -> Unit,
     onShowPrevious: () -> Unit,
     onShowNext: () -> Unit
 ) {
@@ -423,7 +455,7 @@ private fun QueueHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = stringResource(R.string.queue_title),
                     style = MaterialTheme.typography.titleMedium,
@@ -433,25 +465,59 @@ private fun QueueHeader(
                 if (remainingMs >= 0L) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Schedule,
-                            contentDescription = null,
-                            tint = if (remainingMs < URGENT_THRESHOLD_MS) RiskCriticalColor
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            text = if (remainingMs <= 0L) {
-                                stringResource(R.string.expires_soon)
-                            } else {
-                                stringResource(R.string.expires_in, formatRemaining(remainingMs))
+                        Surface(
+                            shape = ShapeFull,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Schedule,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = if (remainingMs <= 0L) {
+                                        stringResource(R.string.expires_soon)
+                                    } else {
+                                        stringResource(R.string.expires_in, formatRemaining(remainingMs))
+                                    },
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 12.sp,
+                                    fontFamily = MonospaceFont
+                                )
+                            }
+                        }
+
+                        AssistChip(
+                            onClick = onExtendDeadline,
+                            label = {
+                                Text(
+                                    text = stringResource(R.string.btn_extend_time),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                             },
-                            color = if (remainingMs < URGENT_THRESHOLD_MS) RiskCriticalColor
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            fontFamily = MonospaceFont
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            },
+                            shape = ShapeFull,
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                labelColor = MaterialTheme.colorScheme.primary
+                            ),
+                            border = null,
+                            modifier = Modifier.height(26.dp)
                         )
                     }
                 }
@@ -481,18 +547,6 @@ private fun QueueHeader(
                     }
                 }
             }
-        }
-
-        if (remainingMs > 0L) {
-            LinearProgressIndicator(
-                progress = { (remainingMs.toFloat() / TOTAL_WINDOW_MS).coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .clip(ShapeFull),
-                color = if (remainingMs < URGENT_THRESHOLD_MS) RiskCriticalColor else MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            )
         }
     }
 }

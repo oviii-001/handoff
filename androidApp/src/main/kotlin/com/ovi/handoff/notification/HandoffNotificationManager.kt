@@ -5,20 +5,24 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.text.HtmlCompat
 import com.ovi.handoff.MainActivity
 import com.ovi.handoff.R
 import com.ovi.handoff.mobile.domain.notification.NotificationNotifier
 import com.ovi.handoff.shared.model.PermissionRequest
-import com.ovi.handoff.shared.model.resolveProjectOrWorkspace
 import com.ovi.handoff.shared.model.cleanName
+import com.ovi.handoff.shared.model.resolveProjectOrWorkspace
 import timber.log.Timber
 
 /**
- * Production-grade notification manager for HandOff.
- * Dispatches high-priority heads-up notifications with direct action buttons
- * ("Approve Once" and "Deny") so developers can authorize coding agents directly from the notification shade.
+ * Production-grade, Material 3 Expressive notification manager for HandOff.
+ *
+ * Dispatches risk-adaptive, beautifully formatted heads-up notifications with
+ * monospace code/terminal blocks, agent branding badges, and contextual direct action
+ * buttons tailored to commands, plans, and questions.
  */
 public class HandoffNotificationManager(
     private val context: Context
@@ -35,11 +39,14 @@ public class HandoffNotificationManager(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Agent Authorizations",
+                context.getString(R.string.notif_channel_name),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "High priority notifications for agent permission and tool requests"
+                description = context.getString(R.string.notif_channel_desc)
                 enableVibration(true)
+                vibrationPattern = longArrayOf(0, 200, 80, 200)
+                enableLights(true)
+                lightColor = Color.RED
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
             }
             notificationManager.createNotificationChannel(channel)
@@ -48,7 +55,13 @@ public class HandoffNotificationManager(
 
     override fun postPermissionRequestNotification(request: PermissionRequest, pairId: String) {
         try {
-            // Intent to open app directly onto the request
+            val agentName = request.agent.cleanName()
+            val projectOrWorkspace = request.resolveProjectOrWorkspace()
+            val riskLevel = request.risk.level.lowercase()
+            val isCritical = riskLevel == "critical" || riskLevel == "high"
+            val riskColor = getRiskColor(riskLevel)
+
+            // Content intent to open the app directly to the request
             val contentIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 putExtra("requestId", request.id)
@@ -60,7 +73,7 @@ public class HandoffNotificationManager(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // Direct "Approve Once" Action Intent
+            // Action: Approve Once
             val approveIntent = Intent(context, NotificationActionReceiver::class.java).apply {
                 action = NotificationActionReceiver.ACTION_APPROVE
                 putExtra(NotificationActionReceiver.EXTRA_REQUEST_ID, request.id)
@@ -74,7 +87,7 @@ public class HandoffNotificationManager(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // Direct "Deny" Action Intent
+            // Action: Deny
             val denyIntent = Intent(context, NotificationActionReceiver::class.java).apply {
                 action = NotificationActionReceiver.ACTION_DENY
                 putExtra(NotificationActionReceiver.EXTRA_REQUEST_ID, request.id)
@@ -88,41 +101,90 @@ public class HandoffNotificationManager(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            val detailText = when {
+            // Title styling based on type and risk
+            val title = when {
+                request.question != null -> context.getString(R.string.notif_title_question, agentName)
+                request.plan != null -> context.getString(R.string.notif_title_plan, agentName)
+                isCritical -> context.getString(R.string.notif_title_critical, request.permission.type.uppercase())
+                else -> context.getString(R.string.notif_title_action, agentName, request.permission.type.uppercase())
+            }
+
+            val subText = if (!projectOrWorkspace.isNullOrBlank()) {
+                context.getString(R.string.notif_subtext_format, projectOrWorkspace, agentName)
+            } else {
+                agentName
+            }
+
+            val summaryText = when {
                 request.permission.command != null -> "$> ${request.permission.command}"
-                request.permission.diff != null -> "Patch: ${request.permission.diff?.take(120)}..."
-                request.question != null -> "Question: ${request.question?.question}"
-                request.plan != null -> "Plan: ${request.plan?.summary}"
+                request.permission.diff != null -> "Patch: ${request.permission.diff?.take(90)}..."
+                request.question != null -> request.question?.question.orEmpty()
+                request.plan != null -> request.plan?.summary.orEmpty()
                 else -> request.permission.description ?: "Authorization Required"
             }
 
-            val projectOrWorkspace = request.resolveProjectOrWorkspace()
-            val agentName = request.agent.cleanName()
-            val title = if (!projectOrWorkspace.isNullOrBlank()) {
-                "[$projectOrWorkspace] $agentName: ${request.permission.type.uppercase()}"
-            } else {
-                "$agentName: ${request.permission.type.uppercase()}"
-            }
+            // Rich HTML-formatted BigText for expanded notification
+            val bigHtml = buildString {
+                if (!projectOrWorkspace.isNullOrBlank()) {
+                    append("<b><font color=\"#90CAF9\">📁 Workspace:</font></b> ")
+                    append("<b>").append(projectOrWorkspace).append("</b><br/><br/>")
+                }
 
-            val projectHeader = if (!projectOrWorkspace.isNullOrBlank()) {
-                "Workspace: $projectOrWorkspace\n"
-            } else ""
+                when {
+                    request.permission.command != null -> {
+                        append("<b><font color=\"#81C784\">Terminal Command:</font></b><br/>")
+                        append("<tt><b>$&gt; ").append(request.permission.command).append("</b></tt><br/><br/>")
+                    }
+                    request.permission.diff != null -> {
+                        append("<b><font color=\"#64B5F6\">Code Patch:</font></b><br/>")
+                        val diffLines = request.permission.diff?.lines()?.take(5)?.joinToString("<br/>") { line ->
+                            val clean = line.replace("<", "&lt;").replace(">", "&gt;")
+                            when {
+                                clean.startsWith("+") -> "<font color=\"#81C784\">$clean</font>"
+                                clean.startsWith("-") -> "<font color=\"#E57373\">$clean</font>"
+                                else -> clean
+                            }
+                        } ?: ""
+                        append("<tt>").append(diffLines).append("</tt><br/><br/>")
+                    }
+                    request.question != null -> {
+                        append("<b><font color=\"#FFB74D\">Question:</font></b><br/>")
+                        append("<b>").append(request.question?.question).append("</b><br/><br/>")
+                    }
+                    request.plan != null -> {
+                        append("<b><font color=\"#FFD54F\">Plan Summary:</font></b><br/>")
+                        append(request.plan?.summary).append("<br/><br/>")
+                    }
+                }
+
+                val riskHex = when (riskLevel) {
+                    "critical" -> "#EF5350"
+                    "high" -> "#FFA726"
+                    "medium" -> "#42A5F5"
+                    else -> "#66BB6A"
+                }
+                append("<font color=\"").append(riskHex).append("\"><b>● ").append(riskLevel.uppercase()).append(" RISK</b></font>")
+                val reason = request.risk.reasons.firstOrNull()
+                if (!reason.isNullOrBlank()) {
+                    append(" — ").append(reason)
+                }
+            }
 
             val builder = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification_shield)
                 .setContentTitle(title)
-                .apply {
-                    if (!projectOrWorkspace.isNullOrBlank()) {
-                        setSubText(projectOrWorkspace)
-                    }
-                }
-                .setContentText(detailText)
+                .setSubText(subText)
+                .setContentText(summaryText)
                 .setStyle(
                     NotificationCompat.BigTextStyle()
-                        .bigText("${projectHeader}$detailText\n\nRisk: ${request.risk.level.uppercase()} • Tap an action below to respond immediately.")
+                        .bigText(HtmlCompat.fromHtml(bigHtml, HtmlCompat.FROM_HTML_MODE_COMPACT))
+                        .setSummaryText(subText)
                 )
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setColor(riskColor)
+                .setColorized(isCritical)
+                .setPriority(if (isCritical) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
+                .setCategory(if (isCritical) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
                 .setContentIntent(contentPendingIntent)
 
@@ -131,30 +193,63 @@ public class HandoffNotificationManager(
                 builder.setTimeoutAfter(ttl)
             }
 
-            // Questions and plans cannot be blindly approved from the notification shade
-            if (request.question == null && request.plan == null) {
-                builder.addAction(
-                    android.R.drawable.ic_media_play,
-                    "Approve Once",
-                    approvePendingIntent
-                )
+            // Contextual actions tailored to the request payload
+            when {
+                request.question != null -> {
+                    builder.addAction(
+                        R.drawable.ic_notif_answer,
+                        context.getString(R.string.notif_action_answer),
+                        contentPendingIntent
+                    )
+                    builder.addAction(
+                        R.drawable.ic_notif_deny,
+                        context.getString(R.string.notif_action_dismiss),
+                        denyPendingIntent
+                    )
+                }
+                request.plan != null -> {
+                    builder.addAction(
+                        R.drawable.ic_notif_open,
+                        context.getString(R.string.notif_action_review_plan),
+                        contentPendingIntent
+                    )
+                    builder.addAction(
+                        R.drawable.ic_notif_deny,
+                        context.getString(R.string.notif_action_reject),
+                        denyPendingIntent
+                    )
+                }
+                else -> {
+                    builder.addAction(
+                        R.drawable.ic_notif_approve,
+                        context.getString(R.string.notif_action_approve_once),
+                        approvePendingIntent
+                    )
+                    builder.addAction(
+                        R.drawable.ic_notif_deny,
+                        context.getString(R.string.notif_action_deny),
+                        denyPendingIntent
+                    )
+                }
             }
 
-            builder.addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "Deny",
-                denyPendingIntent
-            )
-
             notificationManager.notify(request.id.hashCode(), builder.build())
-            Timber.d("Posted authorization notification for request ${request.id}")
+            Timber.d("Posted enhanced authorization notification for request ${request.id}")
         } catch (e: Exception) {
-            Timber.e(e, "Failed to post notification for request ${request.id}")
+            Timber.e(e, "Failed to post enhanced notification for request ${request.id}")
         }
     }
 
     override fun dismissNotification(requestId: String) {
         notificationManager.cancel(requestId.hashCode())
+    }
+
+
+    private fun getRiskColor(riskLevel: String): Int = when (riskLevel.lowercase()) {
+        "critical" -> Color.parseColor("#D32F2F")
+        "high" -> Color.parseColor("#E65100")
+        "medium" -> Color.parseColor("#0288D1")
+        else -> Color.parseColor("#2E7D32")
     }
 
     public companion object {

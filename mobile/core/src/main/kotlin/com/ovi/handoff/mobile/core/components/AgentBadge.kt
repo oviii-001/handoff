@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ovi.handoff.mobile.core.theme.ShapeFull
@@ -96,7 +97,9 @@ fun AgentBadge(
             text = displayName,
             color = visuals.contentColor,
             fontWeight = FontWeight.Bold,
-            fontSize = 12.sp
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         if (!version.isNullOrBlank()) {
             Box(
@@ -109,7 +112,8 @@ fun AgentBadge(
                     text = "v$version",
                     color = visuals.contentColor,
                     fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
                 )
             }
         }

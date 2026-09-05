@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ovi.handoff.mobile.core.R
@@ -211,40 +212,55 @@ fun TerminalCard(
             ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     AgentBadge(agentId = agentId, agentName = agentName)
 
                     if (!projectOrWorkspace.isNullOrBlank()) {
+                        val label = shortWorkspaceName(projectOrWorkspace) ?: projectOrWorkspace
                         Box(
                             modifier = Modifier
                                 .clip(ShapeFull)
                                 .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text(
-                                text = projectOrWorkspace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = label,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp,
+                                    fontFamily = MonospaceFont,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
+                }
 
-                    Box(
-                        modifier = Modifier
-                            .clip(ShapeFull)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = toolType,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
-                            fontFamily = MonospaceFont,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                Box(
+                    modifier = Modifier
+                        .clip(ShapeFull)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = toolType,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontFamily = MonospaceFont,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 

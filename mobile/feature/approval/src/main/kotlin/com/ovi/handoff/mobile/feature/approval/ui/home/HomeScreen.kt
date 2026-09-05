@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +54,7 @@ public fun HomeScreen(
     onSubmitQuestion: (List<String>, String?) -> Unit,
     onProceedPlan: () -> Unit,
     onRequestPlanChanges: (String) -> Unit,
+    onExtendDeadline: () -> Unit = {},
     onShowPrevious: () -> Unit,
     onShowNext: () -> Unit,
     onBlocked: (String) -> Unit
@@ -64,7 +64,6 @@ public fun HomeScreen(
             HomeTopAppBar(
                 isPaired = uiState.isPaired,
                 connectionState = uiState.connectionState,
-                workspaceLabel = uiState.activeWorkspaceLabel,
                 pendingCount = uiState.pendingCount,
                 onHaltAgent = onShowHaltDialog
             )
@@ -109,12 +108,14 @@ public fun HomeScreen(
                                 queueSize = uiState.pendingCount,
                                 isSending = uiState.isSendingDecision,
                                 connectionState = uiState.connectionState,
+                                connectionError = uiState.connectionError,
                                 requireBiometricsForCritical = uiState.settings.biometricsForCritical,
                                 onApprove = onApprove,
                                 onReject = onReject,
                                 onSubmitQuestion = onSubmitQuestion,
                                 onProceedPlan = onProceedPlan,
                                 onRequestPlanChanges = onRequestPlanChanges,
+                                onExtendDeadline = onExtendDeadline,
                                 onShowPrevious = onShowPrevious,
                                 onShowNext = onShowNext,
                                 onBlocked = onBlocked,
@@ -147,56 +148,30 @@ private enum class HomeContent { UNPAIRED, REQUEST, STANDBY }
 private fun HomeTopAppBar(
     isPaired: Boolean,
     connectionState: ConnectionState,
-    workspaceLabel: String?,
     pendingCount: Int,
     onHaltAgent: () -> Unit
 ) {
     TopAppBar(
         title = {
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.app_name),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    if (isPaired) {
-                        StatusPill(state = connectionState.toLinkState())
-                    }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.app_name),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                if (isPaired) {
+                    StatusPill(state = connectionState.toLinkState())
                 }
-                if (isPaired && !workspaceLabel.isNullOrBlank()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(top = 2.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Folder,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Text(
-                            // The folder name, not the absolute path the desktop used to send here.
-                            text = workspaceLabel,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (pendingCount > 1) {
-                            Text(
-                                text = stringResource(R.string.queue_pending_count, pendingCount),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
+                if (pendingCount > 1) {
+                    Text(
+                        text = stringResource(R.string.queue_pending_count, pendingCount),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         },

@@ -87,17 +87,22 @@
     <string name="home_no_recent_activity">No requests recorded in this session yet.</string>
     <string name="guide_unpaired_title">Getting Started with Handoff</string>
     <string name="guide_unpaired_subtitle">Bridge your mobile phone to your desktop IDE for zero-trust authorization</string>
-    <string name="guide_unpaired_step1">1. Open your project in Cursor, Codex, or Antigravity.</string>
-    <string name="guide_unpaired_step2">2. Launch the desktop daemon by running \'handoff daemon\'.</string>
-    <string name="guide_unpaired_step3">3. Scan the terminal QR code or enter the pairing code below.</string>
+    <string name="guide_unpaired_step1">1. Open your project in Cursor, Claude Code, VS Code, or Antigravity.</string>
+    <string name="guide_unpaired_step2">2. In terminal, run \'handoff --pair\' (or .\\handoff.bat --pair on Windows).</string>
+    <string name="guide_unpaired_step3">3. Scan the QR code, enter the 6-digit PIN, or tap the clipboard prompt below.</string>
     <string name="guide_paired_title">How Live Authorization Works</string>
     <string name="guide_paired_tip1">⚡ Real-Time Interception: Agent executions are paused until you decide.</string>
     <string name="guide_paired_tip2">🧭 Steering &amp; Notes: Deny with a note to guide your agent in a better direction.</string>
     <string name="guide_paired_tip3">🛑 Emergency Halt: Instantly abort running tasks at any moment.</string>
     <string name="pair_mode_qr">Scan QR Code</string>
     <string name="pair_mode_manual">Enter Code</string>
-    <string name="pair_manual_hint">Paste Session Pair ID or connection string...</string>
+    <string name="pair_manual_hint">Enter 6-digit code or paste link…</string>
     <string name="pair_btn">Connect &amp; Pair</string>
+    <string name="clipboard_detected_title">Desktop Session Detected</string>
+    <string name="clipboard_detected_subtitle">Found HandOff pairing code on clipboard</string>
+    <string name="action_pair_now">Pair Now</string>
+    <string name="btn_extend_time">+5m Extend</string>
+    <string name="btn_extend_time_desc">Extend review deadline by 5 minutes</string>
     <string name="permission_camera_title">Camera Permission Required</string>
     <string name="permission_camera_msg">Camera access is needed to scan your desktop session QR code.</string>
     <string name="permission_grant_btn">Grant Camera Access</string>
@@ -180,5 +185,10 @@
     <string name="a11y_risk_level">Risk level: %s</string>
     <string name="a11y_approve_request">Approve this request</string>
     <string name="a11y_deny_request">Deny this request</string>
+    <string name="label_ide_tag">IDE:</string>
+    <string name="label_working_tag">Working:</string>
+    <string name="label_ide_format">IDE: %1$s</string>
+    <string name="label_working_format">Working: %1$s</string>
+    <string name="status_connected_ide_default">Not Connected</string>
 </resources>
 

@@ -34,4 +34,8 @@
     <string name="plan_send_changes">Send Changes</string>
     <string name="terminal_tab_command">Command</string>
     <string name="terminal_tab_env">Environment</string>
+    <string name="label_ide_tag">IDE:</string>
+    <string name="label_working_tag">Working:</string>
+    <string name="label_ide_format">IDE: %1$s</string>
+    <string name="label_working_format">Working: %1$s</string>
 </resources>

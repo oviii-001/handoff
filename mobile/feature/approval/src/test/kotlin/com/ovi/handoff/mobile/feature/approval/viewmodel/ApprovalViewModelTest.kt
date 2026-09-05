@@ -64,6 +64,7 @@ class ApprovalViewModelTest {
 
     private val testPairId = "pair-123"
     private val connectionStateFlow = MutableStateFlow(ConnectionState.CONNECTED)
+    private val connectionErrorFlow = MutableStateFlow<String?>(null)
     private val settingsFlow = MutableStateFlow(HandoffSettings())
 
     @Before
@@ -87,6 +88,7 @@ class ApprovalViewModelTest {
         coEvery { pairingRepository.getPairId() } returns testPairId
         every { pairingRepository.observeConnectedSession() } returns flowOf(null)
         every { relayRepository.connectionState } returns connectionStateFlow
+        every { relayRepository.connectionError } returns connectionErrorFlow
         every { settingsRepository.observe() } returns settingsFlow
     }
 

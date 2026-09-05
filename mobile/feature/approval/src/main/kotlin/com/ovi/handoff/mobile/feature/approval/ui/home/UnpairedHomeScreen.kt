@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,19 @@ fun UnpairedHomeScreen(
     val clipboardManager = LocalClipboardManager.current
     val scrollState = rememberScrollState()
 
+    var clipboardSnippet by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        val clip = clipboardManager.getText()?.text?.trim()
+        if (!clip.isNullOrBlank()) {
+            val isPairUrl = clip.startsWith("handoff://pair")
+            val digits = clip.filter { it.isDigit() }
+            val isPin = digits.length == 6 && clip.matches(Regex("^[0-9\\s-]+$"))
+            if (isPairUrl || isPin) {
+                clipboardSnippet = clip
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -76,6 +90,52 @@ fun UnpairedHomeScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (clipboardSnippet != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ShapeLarge,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                onClick = {
+                    clipboardSnippet?.let { onPairWithCode(it) }
+                }
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentPaste,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.clipboard_detected_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = stringResource(R.string.clipboard_detected_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                    Button(
+                        onClick = { clipboardSnippet?.let { onPairWithCode(it) } },
+                        shape = ShapeFull,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Text(text = stringResource(R.string.action_pair_now))
+                    }
+                }
+            }
+        }
         // Unified Onboarding Hero (Shield + Title + Step Guide)
         Card(
             modifier = Modifier.fillMaxWidth(),
